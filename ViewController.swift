@@ -9,12 +9,14 @@ import UIKit
 import CoreBluetooth
 
 class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDelegate, UITableViewDelegate, UITableViewDataSource, UITextFieldDelegate {
-    
+    var selectedDev: CBPeripheral? = nil
     var batteryPeripheral: CBPeripheral? = nil
     var centralManager: CBCentralManager!
     var devices: [CBPeripheral] = []
     var tableView: UITableView!
     var textField: UITextField!
+    var writeChar:CBCharacteristic?
+    var readChar:CBCharacteristic?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -88,12 +90,16 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             
             // Check if the characteristic supports write
             if characteristic.properties.contains(.write) {
-                if let textFieldText = textField.text {
-                    let message = textFieldText + "12:12:12:12:12:12"
-                    if let data = message.data(using: .utf8) {
-                        peripheral.writeValue(data, for: characteristic, type: .withResponse)
-                    }
-                }
+               
+            
+                 
+//                        peripheral.writeValue(data, for: characteristic, type: .withResponse)
+                        writeChar = characteristic
+                let messageToSend = "a"
+                sendString(toPeripheral: selectedDev!, message: messageToSend)
+                }else{
+                    readChar = characteristic
+                
             }
             
             // Check if the characteristic supports read
@@ -121,24 +127,46 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         
         if let value = characteristic.value, let responseString = String(data: value, encoding: .utf8) {
             print("Received response: \(responseString)")
+            if responseString == "\0"{
+                return
+            }
+            if responseString == "DEVICE_ALREADY_CONNE"{
+                sendString(toPeripheral: selectedDev!, message: "d")
+                return
+            }
+            if responseString == "CONNECT_OK\0"{
+               sendString(toPeripheral: selectedDev!, message: "d")
+                return
+           }
+            
+            if responseString == "AUDIO_START_OK\0" || responseString == "AUDIO_START_OK"{
+//                sendString(toPeripheral: selectedDev!, message: "b")
+                centralManager.cancelPeripheralConnection(selectedDev!)
+                
+            }
+            
+            if responseString == ""{
+              
+            }
         } else {
             print("No value received or unable to decode data")
         }
     }
 
     func sendString(toPeripheral peripheral: CBPeripheral, message: String) {
-        print(peripheral.services)
-        guard let characteristic = peripheral.services?.first?.characteristics?.first else {
-            print("Characteristic not found")
-            return
-        }
+       
+        let message = message + "12:12:12:12:12:12"
+                            if let data = message.data(using: .utf8) {
+                                selectedDev!.writeValue(data, for: writeChar!, type: .withResponse)
+                              
+                            }
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let selectedDevice = devices[indexPath.row]
-        centralManager.connect(selectedDevice, options: nil)
-        let messageToSend = textField.text
-        sendString(toPeripheral: selectedDevice, message: messageToSend!)
+        selectedDev = devices[indexPath.row]
+        
+        centralManager.connect(selectedDev!, options: nil)
+      
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
