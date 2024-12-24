@@ -4,7 +4,7 @@
 //
 //  Created by Maksimilian on 5.02.23.
 //
-
+import MediaPlayer
 import UIKit
 import CoreBluetooth
 
@@ -32,10 +32,16 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         textField.borderStyle = .roundedRect
         textField.delegate = self
         view.addSubview(textField)
-        
+        tableView.rowHeight = 300
         centralManager = CBCentralManager(delegate: self, queue: nil)
-    }
+        NotificationCenter.default.addObserver(self, selector: #selector(volumeChanged(_:)), name: NSNotification.Name(rawValue: "AVSystemController_SystemVolumeDidChangeNotification"), object: nil)
 
+    }
+    @objc func volumeChanged(_ notification: NSNotification) {
+     if let volume = notification.userInfo!["AVSystemController_AudioVolumeNotificationParameter"] as? Float {
+         print("volume: \(volume)")
+     }
+    }
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
             central.scanForPeripherals(withServices: nil, options: nil)
@@ -43,6 +49,20 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             print("Bluetooth не включен")
         }
     }
+  
+
+            
+           
+        
+        
+        func handleVolumeUp() {
+            print("Нажата кнопка увеличения громкости")
+        }
+        
+        func handleVolumeDown() {
+            print("Нажата кнопка уменьшения громкости")
+        }
+    
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         if let name = peripheral.name {
@@ -130,16 +150,16 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             if responseString == "\0"{
                 return
             }
-            if responseString == "DEVICE_ALREADY_CONNE"{
+            if responseString == "41\0"{
                 sendString(toPeripheral: selectedDev!, message: "d")
                 return
             }
-            if responseString == "CONNECT_OK\0"{
+            if responseString == "20\0"{
                sendString(toPeripheral: selectedDev!, message: "d")
                 return
            }
             
-            if responseString == "AUDIO_START_OK\0" || responseString == "AUDIO_START_OK"{
+            if responseString == "202" || responseString == "404"{
 //                sendString(toPeripheral: selectedDev!, message: "b")
                 centralManager.cancelPeripheralConnection(selectedDev!)
                 
@@ -175,6 +195,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
+        
         let device = devices[indexPath.row]
         cell.textLabel?.text = device.name
         cell.detailTextLabel?.text = device.name
