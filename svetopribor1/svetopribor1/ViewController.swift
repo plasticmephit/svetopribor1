@@ -1,192 +1,37 @@
-//
-//  ViewController.swift
-//  svetopribor
-//
-//  Created by Maksimilian on 5.02.23.
-//
-import MediaPlayer
 import UIKit
 import CoreBluetooth
 
-class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDelegate, UITableViewDelegate, UITableViewDataSource, UITextFieldDelegate {
-    var selectedDev: CBPeripheral? = nil
-    var batteryPeripheral: CBPeripheral? = nil
-    var centralManager: CBCentralManager!
+class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
+    let bluetoothManager = BluetoothManager.shared
+    let tableView = UITableView()
     var devices: [CBPeripheral] = []
-    var tableView: UITableView!
-    var textField: UITextField!
-    var writeChar:CBCharacteristic?
-    var readChar:CBCharacteristic?
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        tableView = UITableView(frame: CGRect(x: 0, y: 100, width: view.bounds.width, height: view.bounds.height - 80), style: .plain)
+        setupTableView()
+        NotificationCenter.default.addObserver(self, selector: #selector(reloadTable), name: NSNotification.Name("didDiscoverPeripheral"), object: nil)
+    }
+
+    private func setupTableView() {
+        view.backgroundColor = .white
+        title = "Устройства Bluetooth"
+
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Cell")
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+        
         view.addSubview(tableView)
-        
-        textField = UITextField(frame: CGRect(x: 20, y: 60, width: view.bounds.width - 40, height: 40))
-        textField.placeholder = "Введите строку"
-        textField.borderStyle = .roundedRect
-        textField.delegate = self
-        view.addSubview(textField)
-        tableView.rowHeight = 300
-        centralManager = CBCentralManager(delegate: self, queue: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(volumeChanged(_:)), name: NSNotification.Name(rawValue: "AVSystemController_SystemVolumeDidChangeNotification"), object: nil)
-
-    }
-    @objc func volumeChanged(_ notification: NSNotification) {
-     if let volume = notification.userInfo!["AVSystemController_AudioVolumeNotificationParameter"] as? Float {
-         print("volume: \(volume)")
-     }
-    }
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        if central.state == .poweredOn {
-            central.scanForPeripherals(withServices: nil, options: nil)
-        } else {
-            print("Bluetooth не включен")
-        }
-    }
-  
-
-            
-           
-        
-        
-        func handleVolumeUp() {
-            print("Нажата кнопка увеличения громкости")
-        }
-        
-        func handleVolumeDown() {
-            print("Нажата кнопка уменьшения громкости")
-        }
-    
-
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        if let name = peripheral.name {
-            devices.append(peripheral)
-            tableView.reloadData()
-        }
+        tableView.translatesAutoresizingMaskIntoConstraints = false
+        tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).isActive = true
+        tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
+        tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
+        tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
     }
 
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Connected to \(peripheral.name ?? "Unknown Device")")
-        peripheral.delegate = self
-        peripheral.discoverServices(nil)
-    }
-
-    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        print("Failed to connect to \(peripheral.name ?? "Unknown Device"): \(error?.localizedDescription ?? "Unknown Error")")
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        peripheral.discoverCharacteristics(nil, for: peripheral.services![0])
-        batteryPeripheral = peripheral
-        if let services = peripheral.services {
-            for service in services {
-                print("Discovered service: \(service)")
-                let data = textField.text!.data(using: .utf8)
-            }
-        } else {
-            print("No services found on the peripheral")
-        }
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        guard error == nil else {
-            print("Error discovering characteristics: \(String(describing: error))")
-            return
-        }
-        
-        for characteristic in service.characteristics! {
-            print("Discovered characteristic: \(characteristic.uuid)")
-            
-            // Check if the characteristic supports notify
-            if characteristic.properties.contains(.notify) {
-                peripheral.setNotifyValue(true, for: characteristic)
-            }
-            
-            // Check if the characteristic supports write
-            if characteristic.properties.contains(.write) {
-               
-            
-                 
-//                        peripheral.writeValue(data, for: characteristic, type: .withResponse)
-                        writeChar = characteristic
-                let messageToSend = "a"
-                sendString(toPeripheral: selectedDev!, message: messageToSend)
-                }else{
-                    readChar = characteristic
-                
-            }
-            
-            // Check if the characteristic supports read
-            if characteristic.properties.contains(.read) {
-                peripheral.readValue(for: characteristic)
-            }
-        }
-    }
-
-
-    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        if let error = error {
-            print("Error writing value for characteristic \(characteristic.uuid): \(error.localizedDescription)")
-        } else {
-            print("Successfully wrote value for characteristic \(characteristic.uuid)")
-            peripheral.readValue(for: characteristic)
-        }
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if let error = error {
-            print("Error updating value for characteristic \(characteristic.uuid): \(error.localizedDescription)")
-            return
-        }
-        
-        if let value = characteristic.value, let responseString = String(data: value, encoding: .utf8) {
-            print("Received response: \(responseString)")
-            if responseString == "\0"{
-                return
-            }
-            if responseString == "41\0"{
-                sendString(toPeripheral: selectedDev!, message: "d")
-                return
-            }
-            if responseString == "20\0"{
-               sendString(toPeripheral: selectedDev!, message: "d")
-                return
-           }
-            
-            if responseString == "202" || responseString == "404"{
-//                sendString(toPeripheral: selectedDev!, message: "b")
-                centralManager.cancelPeripheralConnection(selectedDev!)
-                
-            }
-            
-            if responseString == ""{
-              
-            }
-        } else {
-            print("No value received or unable to decode data")
-        }
-    }
-
-    func sendString(toPeripheral peripheral: CBPeripheral, message: String) {
-       
-        let message = message + "12:12:12:12:12:12"
-                            if let data = message.data(using: .utf8) {
-                                selectedDev!.writeValue(data, for: writeChar!, type: .withResponse)
-                              
-                            }
-    }
-
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        selectedDev = devices[indexPath.row]
-        
-        centralManager.connect(selectedDev!, options: nil)
-      
+    @objc private func reloadTable() {
+        let uniqueDevices = Set(bluetoothManager.devices.filter { $0.name?.starts(with: "BY") == true })
+        devices = Array(uniqueDevices)
+        tableView.reloadData()
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -194,16 +39,16 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
-        
+        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
         let device = devices[indexPath.row]
-        cell.textLabel?.text = device.name
-        cell.detailTextLabel?.text = device.name
+        cell.textLabel?.text = device.name ?? "Неизвестное устройство"
         return cell
     }
 
-    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        textField.resignFirstResponder()
-        return true
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let device = devices[indexPath.row]
+        bluetoothManager.centralManager.connect(device, options: nil)
+        let commandViewController = BluetoothCommandViewController(device: device)
+        navigationController?.pushViewController(commandViewController, animated: true)
     }
 }
