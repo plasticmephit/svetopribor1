@@ -85,7 +85,7 @@ class BluetoothCommandViewController: UIViewController {
 
        
         activityIndicator.startAnimating()
-        
+      
         bluetoothManager.sendString(toPeripheral: peripheral, message: command)
     }
 }

@@ -9,7 +9,5 @@
 		<key>UISceneConfigurations</key>
 		<dict/>
 	</dict>
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>We use Bluetooth to discover nearby devices for communication.</string>
 </dict>
 </plist>

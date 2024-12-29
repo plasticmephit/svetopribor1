@@ -117,6 +117,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
 
     func sendString(toPeripheral peripheral: CBPeripheral, message: String) {
         selectedDev = peripheral
+       
         let fullMessage = message + convertUUIDTo12Format(peripheral.identifier)
         if let data = fullMessage.data(using: .utf8) {
             selectedDev?.writeValue(data, for: writeChar!, type: .withResponse)
