@@ -8,8 +8,8 @@ class BluetoothCommandViewController: UIViewController {
     var activityIndicator: UIActivityIndicatorView!
 
     let commands = [
-        ("a", "Подключение"),
-        ("b", "Отключение"),
+//        ("a", "Подключение"),
+//        ("b", "Отключение"),
         ("c", "Получение информации"),
         ("d", "Воспроизведение основной аудиозаписи"),
         ("e", "Постановка на паузу текущей аудиозаписи"),
@@ -24,6 +24,7 @@ class BluetoothCommandViewController: UIViewController {
     
     init(device: CBPeripheral) {
         self.device = device
+        bluetoothManager.centralManager.connect(device, options: nil)
         super.init(nibName: nil, bundle: nil)
         self.title = device.name ?? "Команды устройства"
     }
@@ -65,10 +66,63 @@ class BluetoothCommandViewController: UIViewController {
     }
 
     @objc private func handleResponse(notification: Notification) {
+        
         if let response = notification.userInfo?["response"] as? String {
             activityIndicator.stopAnimating()
-            tableView.isUserInteractionEnabled = true
             
+            tableView.isUserInteractionEnabled = true
+            switch response {
+            case "200\0":
+                print("CONNECT_OK")
+            case "400\0":
+                print("DEVICE_BUSY_ERR")
+            case "401\0":
+                print("INVALID_MAC_ERR")
+            case "402\0":
+                print("CONNECT_ERR")
+            case "403\0":
+                print("DISCONNECT_ERR")
+            case "201\0":
+                print("DISCONNECT_OK")
+            case "404\0":
+                print("AUDIO_ALREADY_START")
+            case "202\0":
+                print("AUDIO_START_OK")
+            case "405\0":
+                print("AUDIO_START_ERR")
+            case "406\0":
+                print("AUDIO_ALREADY_STOP")
+            case "203\0":
+                print("AUDIO_STOP_OK")
+            case "407\0":
+                print("AUDIO_STOP_ERR")
+            case "408\0":
+                print("AUDIO_ALREADY_PAUSE")
+            case "204\0":
+                print("AUDIO_PAUSE_OK")
+            case "409\0":
+                print("AUDIO_PAUSE_ERR")
+            case "205\0":
+                print("AUDIO_LOUDER_OK")
+            case "206\0":
+                print("AUDIO_QUIET_OK")
+            case "100\0":
+                print("DEFAULT")
+            case "410\0":
+                print("WRONG_MESSAGE")
+            case "411\0":
+                print("DEVICE_ISNT_CONNECTED")
+            case "412\0":
+                print("DEVICE_ALREADY_CONNECTED")
+            case "500\0":
+                print("DISCONNECT_REQ")
+            case "501\0":
+                print("CONTINUE_SESSION_SUC")
+            case "502\0":
+                print("SESSION_TIMEOUT_DISK")
+            default:
+                print("Unknown response: \(response)")
+            }
             let alert = UIAlertController(title: "Ответ", message: response, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
             present(alert, animated: true, completion: nil)

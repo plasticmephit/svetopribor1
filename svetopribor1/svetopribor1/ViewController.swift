@@ -47,7 +47,7 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let device = devices[indexPath.row]
-        bluetoothManager.centralManager.connect(device, options: nil)
+       
         let commandViewController = BluetoothCommandViewController(device: device)
         navigationController?.pushViewController(commandViewController, animated: true)
     }
