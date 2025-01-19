@@ -131,7 +131,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                                         if responseString == "200\0" || responseString == "412\0"{
                                             
                                             print("гандон сюда")
-                                            self.sendString(toPeripheral: peripheral, message: "w")
+//                                            self.sendString(toPeripheral: peripheral, message: "w")
                                         }
                                         DispatchQueue.main.async {
                                         self.showAlert(response: responseString)
