@@ -78,10 +78,11 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                     print("Discovered target characteristic: \(characteristic.uuid)")
                     crc32Char = characteristic
                     peripheral.readValue(for: characteristic)
+                    peripheral.setNotifyValue(false, for: characteristic)
                     
                 }else{
                     if characteristic.uuid == CBUUID(string: "E1C800B4-695B-4747-9256-6D22FD869F5B") {
-                        
+                        peripheral.setNotifyValue(false, for: characteristic)
                     }
                     if characteristic.uuid == CBUUID(string: "E1C800B4-695B-4747-9256-6D22FD869F58") {
                         peripheral.setNotifyValue(true, for: characteristic)
@@ -133,14 +134,14 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                     if let readValue = value {
                         let data = readValue
                         if let string = String(data: data, encoding: .utf8) {
-                            print("Converted string123: \(string)", crc)
+                           
                             if string == "0\0"{
                                 if let value = characteristic.value {
                                     
                                     if let responseString = String(data: value, encoding: .utf8) { print("Received response1: \(responseString)")
                                         
                                        
-//                                            self.sendString(toPeripheral: peripheral, message: "a")
+                                            self.sendString(toPeripheral: peripheral, message: "a")
                                         return
                                     }
                                 } else { print("No value received or unable to decode data")
@@ -164,7 +165,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                 if characteristic.uuid == targetUUID2 {
         
         
-                    return
+//                    return
                 }
 //        let targetUUID3 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5a")
 //        if characteristic.uuid == targetUUID3 {
@@ -192,7 +193,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                                     if responseString == "200\0" || responseString == "412\0"{
                                         
                                         
-//                                        self.sendString(toPeripheral: peripheral, message: "x")
+                                        self.sendString(toPeripheral: peripheral, message: "x")
                                     }
                                     DispatchQueue.main.async {
                                         self.showAlert(response: responseString)
@@ -242,7 +243,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                 if let readValue = value {
                     let data = readValue
                     if let string = String(data: data, encoding: .utf8) {
-                        print("Converted string: \(string)", crc)
+                      
                         if string  == crc + "\0" || string == "0\0"{
                             self.performSendString(message: message)
                             print("Nice crc")
@@ -287,7 +288,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
         let mac = result
         let crc32 = calculateMACCRC32(macAddress: mac)
-        print("CRC32: \(crc32)")
+//        print("CRC32: \(crc32)")
         crc32Mac = crc32
         return result
     }
