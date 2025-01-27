@@ -8,8 +8,8 @@ class BluetoothCommandViewController: UIViewController {
     var activityIndicator: UIActivityIndicatorView!
 
     let commands = [
-//        ("a", "Подключение"),
-//        ("b", "Отключение"),
+        ("a", "Подключение"),
+        ("b", "Отключение"),
         ("c", "Получение информации"),
         ("d", "Воспроизведение основной аудиозаписи"),
         ("e", "Постановка на паузу текущей аудиозаписи"),
@@ -25,6 +25,7 @@ class BluetoothCommandViewController: UIViewController {
     init(device: CBPeripheral) {
         self.device = device
         bluetoothManager.centralManager.connect(device, options: nil)
+//        bluetoothManager.sendString(toPeripheral: device, message: "a")
         super.init(nibName: nil, bundle: nil)
         self.title = device.name ?? "Команды устройства"
     }
