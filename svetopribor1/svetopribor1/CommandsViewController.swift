@@ -25,6 +25,7 @@ class BluetoothCommandViewController: UIViewController {
     init(device: CBPeripheral) {
         self.device = device
         bluetoothManager.centralManager.connect(device, options: nil)
+        
 //        bluetoothManager.sendString(toPeripheral: device, message: "a")
         super.init(nibName: nil, bundle: nil)
         self.title = device.name ?? "Команды устройства"
