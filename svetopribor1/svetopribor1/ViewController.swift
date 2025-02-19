@@ -65,6 +65,7 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
         let (device, rssi, data) = devices[indexPath.row]
+        print(device.identifier, "device1")
         cell.textLabel?.text = "\(device.name ?? "Неизвестное устройство") - \(rssi) dBm"
         return cell
     }
