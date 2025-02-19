@@ -93,7 +93,30 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         print("Connected to \(peripheral.name ?? "Unknown Device")")
         peripheral.delegate = self
         peripheral.discoverServices(nil)
-        selectedDev = peripheral
+        let crc = calculateMACCRC32(macAddress: convertUUIDTo12Format(UIDevice.current.identifierForVendor!))
+        
+        if let readChar = crc32Char {
+            readCharacteristic { value in
+                if let readValue = value {
+                    let data = readValue
+                    if let string = String(data: data, encoding: .utf8) {
+                        print("Converted string: \(string)", crc)
+                        if string == crc + "\0" || string == "\0"{
+                           
+                        
+                                    self.selectedDev = peripheral
+                               
+                            
+                        }else{
+                          
+                                self.centralManager.cancelPeripheralConnection(peripheral)
+                            
+                        }
+                    }
+                }
+            }
+        }
+      
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -182,6 +205,10 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                         if string  == crc + "\0" || string == "0\0"{
                             self.performSendString(message: message)
                             print("Nice crc")
+                        }else{
+                            if self.selectedDev != nil {
+                                self.centralManager.cancelPeripheralConnection(self.selectedDev!)
+                            }
                         }
                     } else {
                         print("Failed to convert Data to String")
@@ -248,7 +275,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
         let targetUUID2 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f58")
         if characteristic.uuid == targetUUID2 {
-            print("receive 2xx 4xx", String(data: characteristic.value!, encoding: .utf8))
+//            print("receive 2xx 4xx", String(data: characteristic.value!, encoding: .utf8))
             
         }
 
