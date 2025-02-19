@@ -1,15 +1,20 @@
 import UIKit
 import CoreBluetooth
 
-class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
+class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UITableViewDataSource{
+    
+   
+    
     let bluetoothManager = BluetoothManager.shared
     let tableView = UITableView()
-    var devices: [CBPeripheral] = []
+    var devices: [(CBPeripheral, NSNumber)] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupTableView()
-        NotificationCenter.default.addObserver(self, selector: #selector(reloadTable), name: NSNotification.Name("didDiscoverPeripheral"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(reloadTable), name: NSNotification.Name("didUpdateRSSI"), object: nil)
+     
+       
     }
 
     private func setupTableView() {
@@ -29,8 +34,7 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
     }
 
     @objc private func reloadTable() {
-        let uniqueDevices = Set(bluetoothManager.devices.filter { $0.name?.starts(with: "BY") == true })
-        devices = Array(uniqueDevices)
+        devices = bluetoothManager.devices
         tableView.reloadData()
     }
 
@@ -40,13 +44,13 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-        let device = devices[indexPath.row]
-        cell.textLabel?.text = device.name ?? "Неизвестное устройство"
+        let (device, rssi) = devices[indexPath.row]
+        cell.textLabel?.text = "\(device.name ?? "Неизвестное устройство") - \(rssi) dBm"
         return cell
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let device = devices[indexPath.row]
+        let (device, _) = devices[indexPath.row]
         bluetoothManager.centralManager.connect(device, options: nil)
 //        let commandViewController = BluetoothCommandViewController(device: device)
 //        navigationController?.pushViewController(commandViewController, animated: true)

@@ -1,117 +1,122 @@
-import CoreBluetooth
 import UIKit
 import CoreBluetooth
-import UIKit
 
 class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
+    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+           if peripheral.state == .poweredOn {
+               print("Peripheral manager is powered on")
+           } else {
+               print("Peripheral manager is not powered on")
+           }
+       }
+       
+       // Методы CBPeripheralDelegate
+       
+       func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
+           print("Peripheral did modify services: \(invalidatedServices)")
+       }
+       
+       func peripheral(_ peripheral: CBPeripheral, didUpdateName name: String?) {
+           print("Peripheral did update name: \(name ?? "Unknown")")
+       }
+       
+    
     static let shared = BluetoothManager()
     
     var selectedDev: CBPeripheral? = nil
     var batteryPeripheral: CBPeripheral? = nil
     var centralManager: CBCentralManager!
-    var devices: [CBPeripheral] = []
+    var devices: [(CBPeripheral, NSNumber)] = []
     var writeChar: CBCharacteristic?
     var crc32Char: CBCharacteristic?
-    var readchar :CBCharacteristic?
-    var isPlaying :CBCharacteristic?
+    var readchar: CBCharacteristic?
+    var isPlaying: CBCharacteristic?
     var peripheralManager: CBPeripheralManager?
     var crc32Mac = ""
-    
+
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
         peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
     }
-    
+
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
-            central.scanForPeripherals(withServices: nil, options: nil)
+            central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+             
         } else {
             print("Bluetooth не включен")
         }
     }
-    
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        if let name = peripheral.name, name.starts(with: "BYEL"), !devices.contains(where: { $0.identifier == peripheral.identifier }) {
-            devices.append(peripheral)
-            NotificationCenter.default.post(name: NSNotification.Name("didDiscoverPeripheral"), object: nil)
+
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
+        if let name = peripheral.name, name.starts(with: "BYEL") {
+            if let index = devices.firstIndex(where: { $0.0.identifier == peripheral.identifier }) {
+                devices[index] = (peripheral, RSSI)
+                print(peripheral.name)
+            } else {
+                devices.append((peripheral, RSSI))
+            }
+            NotificationCenter.default.post(name: NSNotification.Name("didUpdateRSSI"), object: nil)
         }
-    }
     
+    }
+
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to \(peripheral.name ?? "Unknown Device")")
         peripheral.delegate = self
         peripheral.discoverServices(nil)
-        
         selectedDev = peripheral
-//        self.sendString(toPeripheral: peripheral, message: "a")
     }
-    
+
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("Failed to connect to \(peripheral.name ?? "Unknown Device"): \(error?.localizedDescription ?? "Unknown Error")")
     }
-    
+
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         print("Disconnected from \(peripheral.name ?? "Unknown Device")")
         selectedDev = nil
         NotificationCenter.default.post(name: NSNotification.Name("didDisconnectPeripheral"), object: nil)
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        peripheral.discoverCharacteristics(nil, for: peripheral.services!.first!)
+        guard let services = peripheral.services else { return }
+        for service in services {
+            peripheral.discoverCharacteristics(nil, for: service)
+        }
         batteryPeripheral = peripheral
-        
     }
-    
-    
-    
+
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard error == nil else {
             print("Error discovering characteristics: \(String(describing: error))")
             return
         }
         selectedDev = peripheral
-        for characteristic in service.characteristics! {
-            print("Discovered characteristic: \(characteristic.uuid)")
+        for characteristic in service.characteristics ?? [] {
             let targetUUID = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5A")
             if characteristic.properties.contains(.notify) {
                 if characteristic.uuid == targetUUID {
-                    print("Discovered target characteristic: \(characteristic.uuid)")
                     crc32Char = characteristic
                     peripheral.readValue(for: characteristic)
-                    peripheral.setNotifyValue(false, for: characteristic)
-                    
-                }else{
-                    if characteristic.uuid == CBUUID(string: "E1C800B4-695B-4747-9256-6D22FD869F5B") {
-                        peripheral.setNotifyValue(false, for: characteristic)
-                        isPlaying = characteristic
-                    }
-                    if characteristic.uuid == CBUUID(string: "E1C800B4-695B-4747-9256-6D22FD869F58") {
-                        peripheral.setNotifyValue(true, for: characteristic)
-                        readchar = characteristic
-                    }
-                   
+                    peripheral.setNotifyValue(true, for: characteristic)
+                } else if characteristic.uuid == CBUUID(string: "E1C800B4-695B-4747-9256-6D22FD869F5B") {
+                    peripheral.setNotifyValue(true, for: characteristic)
+                    isPlaying = characteristic
+                } else if characteristic.uuid == CBUUID(string: "E1C800B4-695B-4747-9256-6D22FD869F58") {
+                    peripheral.setNotifyValue(true, for: characteristic)
+                    readchar = characteristic
                 }
             }
-            
             if characteristic.properties.contains(.write) {
                 writeChar = characteristic
-            } else {
-                
-                
-//                crc32Char = characteristic
             }
-            
             if characteristic.properties.contains(.read) {
                 peripheral.readValue(for: characteristic)
             }
-            
         }
-//        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-//            self.sendString(toPeripheral: peripheral, message: "a")
-//        }
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error = error {
             print("Error writing value for characteristic \(characteristic.uuid): \(error.localizedDescription)")
@@ -121,96 +126,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
     }
     
-    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if peripheral != selectedDev{
-            return
-        }
-        let crc = calculateMACCRC32(macAddress: convertUUIDTo12Format(UIDevice.current.identifierForVendor!))
-        if let error = error { print("Error updating value for characteristic \(characteristic.uuid): \(error.localizedDescription)")
-            return
-        }
-        
-        let targetUUID3 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5a")
-        if characteristic.uuid == targetUUID3 {
-
-
-            return
-        }
-        
-        
-        // Read characteristics before sending the string
-        if let readChar = crc32Char {
-            readCharacteristic { value in
-                if let readValue = value {
-                    let data = readValue
-                    if let string = String(data: data, encoding: .utf8) {
-                        print("Converted string: \(string)", crc)
-                        if string  == crc + "\0" || string == "0\0"{
-                            if let value = characteristic.value {
-                                
-                                if let responseString = String(data: value, encoding: .utf8) { print("Received response: \(responseString)", "-", characteristic.uuid)
-                                    if responseString == "0\0"{
-                                        self.sendString(toPeripheral: peripheral, message: "a")
-                                        return
-                                    }
-                                    if responseString == "411\0"{
-                                        self.sendString(toPeripheral: peripheral, message: "a")
-                                        return
-                                    }
-                                    if responseString == "200\0" || responseString == "412\0" || responseString == "400\0"{
-                                        
-                                       
-                                        self.sendString(toPeripheral: peripheral, message: "x")
-                                        return
-                                    }
-                                    if responseString == "404\0"{
-//                                        self.sendString(toPeripheral: peripheral, message: "e")
-                                        return
-                                    }
-                                    if responseString == "204\0"{
-                                        self.sendString(toPeripheral: peripheral, message: "b")
-                                        if self.selectedDev != nil{
-                                            self.centralManager.cancelPeripheralConnection(self.selectedDev!)
-                                        }
-                                        return
-                                    }
-                                    if responseString == "1\0"{
-                                        self.sendString(toPeripheral: peripheral, message: "e")
-                                    }
-                                    if responseString == "202\0"{
-                                        
-//                                        self.showAlert(response: responseString)
-                                    }
-                                    
-                                    if responseString == "500\0" || responseString == "502\0"{
-                                        DispatchQueue.main.async {
-                                            self.showAlert(response: responseString)
-                                        }
-                                    }
-                                }
-                            } else { print("No value received or unable to decode data")
-                            }
-                            
-                        }
-                        else{
-                            if self.selectedDev != nil{
-                                self.centralManager.cancelPeripheralConnection(self.selectedDev!)
-                            }
-                            return
-                        }
-                    } else {
-                        print("Failed to convert Data to String")
-                    }
-                    
-                }
-                
-            }
-        }
-        
-        
-    }
-
-
+    
     private func showAlert(response: String) {
         if let topController = UIApplication.shared.keyWindow?.rootViewController {
             let alert = UIAlertController(title: "Ответ", message: response, preferredStyle: .alert)
@@ -250,25 +166,91 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             //            performSendString(message: message)
         }
     }
-    
-    
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        if peripheral != selectedDev {
+            return
+        }
+        let crc = calculateMACCRC32(macAddress: convertUUIDTo12Format(UIDevice.current.identifierForVendor!))
+        if let error = error {
+            print("Error updating value for characteristic \(characteristic.uuid): \(error.localizedDescription)")
+            return
+        }
+
+        let targetUUID3 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5a")
+        if characteristic.uuid == targetUUID3 {
+            return
+        }
+
+        // Read characteristics before sending the string
+        if let readChar = crc32Char {
+            readCharacteristic { value in
+                if let readValue = value {
+                    let data = readValue
+                    if let string = String(data: data, encoding: .utf8) {
+                        print("Converted string: \(string)", crc)
+                        if string == crc + "\0" || string == "0\0" {
+                            if let value = characteristic.value {
+                                if let responseString = String(data: value, encoding: .utf8) {
+                                    print("Received response: \(responseString)", "-", characteristic.uuid)
+                                    switch responseString {
+                                    case "0\0":
+                                        self.sendString(toPeripheral: peripheral, message: "a")
+                                    case "411\0":
+                                        self.sendString(toPeripheral: peripheral, message: "a")
+                                    case "200\0", "412\0", "400\0":
+                                        self.sendString(toPeripheral: peripheral, message: "x")
+                                    case "404\0":
+                                        // self.sendString(toPeripheral: peripheral, message: "e")
+                                        return
+                                    case "204\0":
+                                        self.sendString(toPeripheral: peripheral, message: "b")
+                                        if self.selectedDev != nil {
+                                            self.centralManager.cancelPeripheralConnection(self.selectedDev!)
+                                        }
+                                    case "1\0":
+                                        self.sendString(toPeripheral: peripheral, message: "e")
+                                    case "202\0":
+                                        // self.showAlert(response: responseString)
+                                        return
+                                    case "500\0", "502\0":
+                                        DispatchQueue.main.async {
+                                            self.showAlert(response: responseString)
+                                        }
+                                    default:
+                                        print("No value received or unable to decode data")
+                                    }
+                                }
+                            } else {
+                                print("No value received or unable to decode data")
+                            }
+                        } else {
+                            if self.selectedDev != nil {
+                                self.centralManager.cancelPeripheralConnection(self.selectedDev!)
+                            }
+                        }
+                    } else {
+                        print("Failed to convert Data to String")
+                    }
+                }
+            }
+        }
+    }
+
     private func readCharacteristic(completion: @escaping (Data?) -> Void) {
         selectedDev?.readValue(for: crc32Char!)
-        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
             completion(self.crc32Char!.value)
         }
     }
+    
     private func readCharacteristicPlay(completion: @escaping (Data?) -> Void) {
         selectedDev?.readValue(for: isPlaying!)
-        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
             completion(self.isPlaying!.value)
         }
     }
     
     private func performSendString(message: String) {
-        
         let fullMessage = message + convertUUIDTo12Format(UIDevice.current.identifierForVendor!)
         if let data = fullMessage.data(using: .utf8) {
             selectedDev?.writeValue(data, for: writeChar!, type: .withResponse)
@@ -286,37 +268,14 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
         let mac = result
         let crc32 = calculateMACCRC32(macAddress: mac)
-//        print("CRC32: \(crc32)")
         crc32Mac = crc32
         return result
     }
     
-    // Методы CBPeripheralManagerDelegate
-    
-    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        if peripheral.state == .poweredOn {
-            print("Peripheral manager is powered on")
-        } else {
-            print("Peripheral manager is not powered on")
-        }
-    }
-    
-    // Методы CBPeripheralDelegate
-    
-    func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
-        print("Peripheral did modify services: \(invalidatedServices)")
-    }
-    
-    func peripheral(_ peripheral: CBPeripheral, didUpdateName name: String?) {
-        print("Peripheral did update name: \(name ?? "Unknown")")
-    }
-    
     func calculateMACCRC32(macAddress: String) -> String {
         let cleanMacAddress = macAddress.replacingOccurrences(of: ":", with: "")
-        
         let polynomial: UInt32 = 0xEDB88320
         var crc: UInt32 = 0xFFFFFFFF
-        
         let hexBytes = stride(from: 0, to: cleanMacAddress.count, by: 2).compactMap { index -> UInt8? in
             let start = cleanMacAddress.index(cleanMacAddress.startIndex, offsetBy: index)
             let end = cleanMacAddress.index(start, offsetBy: 2)
@@ -338,8 +297,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         crc ^= 0xFFFFFFFF
         return String(format: "%08X", crc)
     }
-    
-    
+
     func handleResponse(response: String) -> String {
         switch response {
         case "0\0":
@@ -422,12 +380,11 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             return "Unknown response: \(response)"
         }
     }
-    
 }
+
 extension Data {
     func hexEncodedString() -> String {
-        
-        
         return map { String(format: "%02X", $0) }.joined()
     }
 }
+
