@@ -93,30 +93,8 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         print("Connected to \(peripheral.name ?? "Unknown Device")")
         peripheral.delegate = self
         peripheral.discoverServices(nil)
-        let crc = calculateMACCRC32(macAddress: convertUUIDTo12Format(UIDevice.current.identifierForVendor!))
         
-        if let readChar = crc32Char {
-            readCharacteristic { value in
-                if let readValue = value {
-                    let data = readValue
-                    if let string = String(data: data, encoding: .utf8) {
-                        print("Converted string: \(string)", crc)
-                        if string == crc + "\0" || string == "\0"{
-                           
-                        
-                                    self.selectedDev = peripheral
-                               
-                            
-                        }else{
-                          
-                                self.centralManager.cancelPeripheralConnection(peripheral)
-                            
-                        }
-                    }
-                }
-            }
-        }
-      
+        selectedDev = peripheral
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
