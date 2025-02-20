@@ -26,6 +26,11 @@ class InformatorManager {
 
     // Метод для добавления информатора
     func addInformator(_ informator: Informator) {
+        if fetchInformator(uuid: informator.uuid) != nil {
+            print("Informator with UUID \(informator.uuid) already exists.")
+            return
+        }
+
         let entity = NSEntityDescription.entity(forEntityName: "InformatorEntity", in: managedContext)!
         let informatorObject = NSManagedObject(entity: entity, insertInto: managedContext)
 
