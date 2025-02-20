@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		6AC729872D674116006CC2DC /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6AC729862D674116006CC2DC /* CoreData.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		6A769AD12D1CE911005DD183 /* svetopribor1.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = svetopribor1.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6AC729862D674116006CC2DC /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6AC729872D674116006CC2DC /* CoreData.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -46,6 +52,7 @@
 			isa = PBXGroup;
 			children = (
 				6A769AD32D1CE911005DD183 /* svetopribor1 */,
+				6AC729852D674115006CC2DC /* Frameworks */,
 				6A769AD22D1CE911005DD183 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -56,6 +63,14 @@
 				6A769AD12D1CE911005DD183 /* svetopribor1.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		6AC729852D674115006CC2DC /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				6AC729862D674116006CC2DC /* CoreData.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

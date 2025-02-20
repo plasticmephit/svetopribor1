@@ -15,7 +15,74 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
       
         NotificationCenter.default.addObserver(self, selector: #selector(deviceUpdated(_:)), name: NSNotification.Name("didUpdateRSSI"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(deviceRemoved(_:)), name: NSNotification.Name("didRemovePeripheral"), object: nil)
-         
+        // Добавление информатора
+        let newInformator = Informator(
+            uuid: UUID().uuidString,
+            name: "example-uuid-to-delete",
+            cleanName: "Clean Example Name",
+            longitude: NSDecimalNumber(string: "27.9876543"),
+            latitude: NSDecimalNumber(string: "53.8976543"),
+            descriptionText: "Example description",
+            type: "object"
+        )
+        InformatorManager.shared.addInformator(newInformator)
+
+        // Добавление массива информаторов
+        let informatorsArray = [
+            Informator(
+                uuid: "example-uuid-to-fetch",
+                name: "Example Name 1",
+                cleanName: "Clean Example Name 1",
+                longitude: NSDecimalNumber(string: "27.9876543"),
+                latitude: NSDecimalNumber(string: "53.8976543"),
+                descriptionText: "Example description 1",
+                type: "object"
+            ),
+            Informator(
+                uuid: "example-uuid-to-fetch1",
+                name: "Example Name 2",
+                cleanName: "Clean Example Name 2",
+                longitude: NSDecimalNumber(string: "26.9876543"),
+                latitude: NSDecimalNumber(string: "52.8976543"),
+                descriptionText: "Example description 2",
+                type: "transport"
+            )
+        ]
+        InformatorManager.shared.addInformators(informatorsArray)
+
+        // Удаление информатора по UUID
+//        let informatorUUIDToDelete = "example-uuid-to-delete" // Пример UUID для удаления
+//        InformatorManager.shared.deleteInformator(uuid: informatorUUIDToDelete)
+
+        // Получение информатора по UUID
+        let informatorUUIDToFetch = "example-uuid-to-fetch" // Пример UUID для получения данных
+        if let fetchedInformator = InformatorManager.shared.fetchInformator(uuid: informatorUUIDToFetch) {
+            print("Fetched Informator: \(fetchedInformator)")
+        } else {
+            print("Informator not found.")
+        }
+
+        // Обновление информатора
+        let updatedInformator = Informator(
+            uuid: informatorUUIDToFetch,
+            name: "Updated Name",
+            cleanName: "Updated Clean Name",
+            longitude: NSDecimalNumber(string: "25.9876543"),
+            latitude: NSDecimalNumber(string: "51.8976543"),
+            descriptionText: "Updated description",
+            type: "object"
+        )
+        InformatorManager.shared.updateInformator(updatedInformator)
+
+        // Получение всех информаторов
+        if let allInformators = InformatorManager.shared.fetchAllInformators() {
+            for informator in allInformators {
+                print("Informator: \(informator)")
+            }
+        } else {
+            print("No informators found.")
+        }
+
        
     }
     
