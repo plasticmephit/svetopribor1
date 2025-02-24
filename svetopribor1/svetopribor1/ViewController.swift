@@ -139,9 +139,9 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let (device, _, _) = devices[indexPath.row]
-        bluetoothManager.centralManager.connect(device, options: nil)
-        bluetoothManager.sendpause()
-//        let commandViewController = BluetoothCommandViewController(device: device)
-//        navigationController?.pushViewController(commandViewController, animated: true)
+//        bluetoothManager.centralManager.connect(device, options: nil)
+//        bluetoothManager.sendpause()
+        let commandViewController = BluetoothCommandViewController(device: device)
+        navigationController?.pushViewController(commandViewController, animated: true)
     }
 }

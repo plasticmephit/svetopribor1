@@ -1,11 +1,13 @@
 import UIKit
 import CoreBluetooth
+import MobileCoreServices
 
 class BluetoothCommandViewController: UIViewController {
     let bluetoothManager = BluetoothManager.shared
     let device: CBPeripheral
     let tableView = UITableView()
     var activityIndicator: UIActivityIndicatorView!
+    var responseTextView: UITextView!
 
     let commands = [
         ("a", "Подключение"),
@@ -19,14 +21,15 @@ class BluetoothCommandViewController: UIViewController {
         ("w", "Получение состояния проигрывателя"),
         ("x", "Воспроизведение медленного пика"),
         ("y", "Воспроизведение среднего пика"),
-        ("z", "Воспроизведение быстрого пика")
+        ("z", "Воспроизведение быстрого пика"),
+        ("start upload", "старт отправки"),
+        ("upload", "Отправить файл")
     ]
     
     init(device: CBPeripheral) {
         self.device = device
         bluetoothManager.centralManager.connect(device, options: nil)
         
-//        bluetoothManager.sendString(toPeripheral: device, message: "a")
         super.init(nibName: nil, bundle: nil)
         self.title = device.name ?? "Команды устройства"
     }
@@ -39,6 +42,7 @@ class BluetoothCommandViewController: UIViewController {
         super.viewDidLoad()
         setupTableView()
         setupActivityIndicator()
+        setupResponseTextView()
         NotificationCenter.default.addObserver(self, selector: #selector(handleResponse), name: NSNotification.Name("didReceiveResponse"), object: nil)
     }
 
@@ -52,7 +56,7 @@ class BluetoothCommandViewController: UIViewController {
         view.addSubview(tableView)
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).isActive = true
-        tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
+        tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor).isActive = true
         tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
         tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
     }
@@ -67,67 +71,31 @@ class BluetoothCommandViewController: UIViewController {
         activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor).isActive = true
     }
 
-    @objc private func handleResponse(notification: Notification) {
+    private func setupResponseTextView() {
+        responseTextView = UITextView()
+        responseTextView.isEditable = false
+        responseTextView.font = UIFont.systemFont(ofSize: 16)
+        responseTextView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(responseTextView)
         
+        responseTextView.topAnchor.constraint(equalTo: tableView.bottomAnchor).isActive = true
+        responseTextView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor).isActive = true
+        responseTextView.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
+        responseTextView.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
+    }
+
+    @objc private func handleResponse(notification: Notification) {
         if let response = notification.userInfo?["response"] as? String {
             activityIndicator.stopAnimating()
-            
             tableView.isUserInteractionEnabled = true
-            switch response {
-            case "200\0":
-                print("CONNECT_OK")
-            case "400\0":
-                print("DEVICE_BUSY_ERR")
-            case "401\0":
-                print("INVALID_MAC_ERR")
-            case "402\0":
-                print("CONNECT_ERR")
-            case "403\0":
-                print("DISCONNECT_ERR")
-            case "201\0":
-                print("DISCONNECT_OK")
-            case "404\0":
-                print("AUDIO_ALREADY_START")
-            case "202\0":
-                print("AUDIO_START_OK")
-            case "405\0":
-                print("AUDIO_START_ERR")
-            case "406\0":
-                print("AUDIO_ALREADY_STOP")
-            case "203\0":
-                print("AUDIO_STOP_OK")
-            case "407\0":
-                print("AUDIO_STOP_ERR")
-            case "408\0":
-                print("AUDIO_ALREADY_PAUSE")
-            case "204\0":
-                print("AUDIO_PAUSE_OK")
-            case "409\0":
-                print("AUDIO_PAUSE_ERR")
-            case "205\0":
-                print("AUDIO_LOUDER_OK")
-            case "206\0":
-                print("AUDIO_QUIET_OK")
-            case "100\0":
-                print("DEFAULT")
-            case "410\0":
-                print("WRONG_MESSAGE")
-            case "411\0":
-                print("DEVICE_ISNT_CONNECTED")
-            case "412\0":
-                print("DEVICE_ALREADY_CONNECTED")
-            case "500\0":
-                print("DISCONNECT_REQ")
-            case "501\0":
-                print("CONTINUE_SESSION_SUC")
-            case "502\0":
-                print("SESSION_TIMEOUT_DISK")
-            default:
-                print("Unknown response: \(response)")
-            }
-            let alert = UIAlertController(title: "Ответ", message: response, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
-            present(alert, animated: true, completion: nil)
+            
+            // Append response to the UITextView
+            let newResponse = "Ответ: \(response)\n"
+            responseTextView.text += newResponse
+            
+            // Scroll to the bottom of the UITextView
+            let bottom = NSRange(location: responseTextView.text.count - 1, length: 1)
+            responseTextView.scrollRangeToVisible(bottom)
         }
         activityIndicator.stopAnimating()
         tableView.isUserInteractionEnabled = true
@@ -138,11 +106,35 @@ class BluetoothCommandViewController: UIViewController {
             print("No peripheral connected")
             return
         }
-
-       
         activityIndicator.startAnimating()
-      
         bluetoothManager.sendString(toPeripheral: peripheral, message: command)
+    }
+    
+    private func presentDocumentPicker() {
+        let documentPicker = UIDocumentPickerViewController(documentTypes: [kUTTypeWaveformAudio as String], in: .import)
+        documentPicker.delegate = self
+        documentPicker.allowsMultipleSelection = false
+        present(documentPicker, animated: true, completion: nil)
+    }
+
+    private func sendFile(url: URL) {
+        do {
+            let audioData = try Data(contentsOf: url)
+           // Начало сессии и старт апдейта
+            let packetSize = 128
+            for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
+                let end = min(chunk + packetSize, audioData.count)
+                var packet = audioData.subdata(in: chunk..<end)
+                if packet.count < 128 {
+                    packet.append(Data(repeating: 0, count: 128 - packet.count)) // Добиваем последний пакет до 128 байт
+                }
+                let packetString = packet.base64EncodedString() // Кодируем в строку
+                bluetoothManager.sendAudioPacket(packet: packetString.data(using: .utf8)!)
+            }
+            bluetoothManager.finishUpdate() // Завершение обновления
+        } catch {
+            print("Ошибка чтения файла: \(error)")
+        }
     }
 }
 
@@ -160,7 +152,27 @@ extension BluetoothCommandViewController: UITableViewDelegate, UITableViewDataSo
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let command = commands[indexPath.row].0
-        sendCommand(command)
+        if command == "start upload"{
+            bluetoothManager.startUpdate(audioNumber: 0)
+        }
+        if command == "upload" {
+            presentDocumentPicker()
+        } else {
+            sendCommand(command)
+        }
         tableView.deselectRow(at: indexPath, animated: true)
+    }
+}
+
+extension BluetoothCommandViewController: UIDocumentPickerDelegate {
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else {
+            return
+        }
+        sendFile(url: url)
+    }
+    
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        print("Выбор файла был отменен.")
     }
 }
