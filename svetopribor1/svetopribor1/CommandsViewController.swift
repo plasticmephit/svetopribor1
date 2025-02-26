@@ -22,7 +22,7 @@ class BluetoothCommandViewController: UIViewController {
         ("x", "Воспроизведение медленного пика"),
         ("y", "Воспроизведение среднего пика"),
         ("z", "Воспроизведение быстрого пика"),
-        ("start upload", "старт отправки"),
+        ("start upload", "Старт отправки"),
         ("upload", "Отправить файл")
     ]
     
@@ -120,22 +120,32 @@ class BluetoothCommandViewController: UIViewController {
     private func sendFile(url: URL) {
         do {
             let audioData = try Data(contentsOf: url)
-           // Начало сессии и старт апдейта
+            bluetoothManager.currentPacketIndex = 0 // Сброс текущего индекса пакета перед отправкой
+            bluetoothManager.packets = []
+            
             let packetSize = 128
             for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
                 let end = min(chunk + packetSize, audioData.count)
                 var packet = audioData.subdata(in: chunk..<end)
-                if packet.count < 128 {
-                    packet.append(Data(repeating: 0, count: 128 - packet.count)) // Добиваем последний пакет до 128 байт
+                if packet.count < packetSize {
+                    packet.append(Data(repeating: 0x66, count: packetSize - packet.count)) // Добиваем последний пакет символом 'f'
                 }
-                let packetString = packet.base64EncodedString() // Кодируем в строку
-                bluetoothManager.sendAudioPacket(packet: packetString.data(using: .utf8)!)
+                bluetoothManager.packets.append(packet)
+                print(bluetoothManager.packets.count, "count")
             }
-            bluetoothManager.finishUpdate() // Завершение обновления
+
+            // Проверка на нечётное количество пакетов
+            if bluetoothManager.packets.count % 2 != 0 {
+                let additionalPacket = Data(repeating: 0x66, count: packetSize) // Создаём пакет, состоящий из 'f'
+                bluetoothManager.packets.append(additionalPacket)
+            }
+            
+            bluetoothManager.sendCurrentPacket() // Начинаем отправку первого пакета
         } catch {
             print("Ошибка чтения файла: \(error)")
         }
     }
+
 }
 
 extension BluetoothCommandViewController: UITableViewDelegate, UITableViewDataSource {
@@ -152,10 +162,9 @@ extension BluetoothCommandViewController: UITableViewDelegate, UITableViewDataSo
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let command = commands[indexPath.row].0
-        if command == "start upload"{
+        if command == "start upload" {
             bluetoothManager.startUpdate(audioNumber: 0)
-        }
-        if command == "upload" {
+        } else if command == "upload" {
             presentDocumentPicker()
         } else {
             sendCommand(command)

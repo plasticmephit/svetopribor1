@@ -16,13 +16,51 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     var peripheralManager: CBPeripheralManager?
     var updateCharacteristic: CBCharacteristic?
     var crc32Mac = ""
+    var currentPacketIndex = 1
+    var packets: [Data] = []
     
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
         peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
     }
-    
+    func handlePacketResponse(_ packetNumber: Int) {
+         if packetNumber == currentPacketIndex + 1 {
+             currentPacketIndex = packetNumber
+             if currentPacketIndex < packets.count {
+                 sendCurrentPacket()
+             } else {
+                 finishUpdate()
+             }
+         } else {
+             sendCurrentPacket()
+         }
+     }
+     
+    func sendCurrentPacket() {
+        guard let updateCharacteristic = updateCharacteristic else {
+            print("Характеристика для обновления не найдена.")
+            return
+        }
+        
+        let packet = packets[currentPacketIndex]
+        let crcString = formatCRC32ToMAC(crc32: crc32Mac)
+        
+        // Преобразуем префикс 'b' и строковый CRC32 в Data
+        guard let prefixData = ("b" + crcString).data(using: .utf8) else {
+            print("Ошибка при преобразовании префикса в данные.")
+            return
+        }
+        
+        // Объединяем префикс с исходными данными пакета
+        var fullPacketData = Data()
+        fullPacketData.append(prefixData)
+        fullPacketData.append(packet)
+        
+        // Отправляем данные
+        selectedDev?.writeValue(fullPacketData, for: updateCharacteristic, type: .withResponse)
+    }
+
     // MARK: - CBCentralManagerDelegate
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -150,7 +188,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         let targetUUID2 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f58")
         if characteristic.uuid == targetUUID2 {
         }
-        
+        NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":characteristic.uuid.uuidString + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
         if let readChar = crc32Char {
             readCharacteristic { value in
                 if let readValue = value {
@@ -167,13 +205,25 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
 //                        }
 //
 //                        if string == crc + "\0" {
-                            if let value = characteristic.value {
-                                if let responseString = String(data: value, encoding: .utf8) {
-                                    NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": responseString])
+                        if let value = characteristic.value {
+                            if let responseString = String(data: value, encoding: .utf8) {
+                                if let intValue = Int(responseString.dropLast()) {
+                                    print(intValue, "yyyy")
+                                    if intValue - 1000 > 0{
+                                        NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "сережа поц осталось пакетов высрать " +  String(self.packets.count - self.currentPacketIndex)])
+                                        self.handlePacketResponse(intValue - 1000)
+                                    }
+                                } else {
+                                   
+                                    print("Received value is not greater than 1000")
                                 }
                             } else {
-                                print("No value received or unable to decode data")
+                                print("Unable to decode data to a string")
                             }
+                        } else {
+                            print("No value received or unable to decode data")
+                        }
+
 //                        }
 //                        if string == crc + "\0" || string == "0\0" {
 //                        } else {
@@ -198,7 +248,8 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             return
         }
         
-        let startCommand = "a\(crc32Mac)\(audioNumber)".data(using: .utf8)!
+        let startCommand = "a\(formatCRC32ToMAC(crc32: crc32Mac))\(audioNumber)".data(using: .utf8)!
+        print("a\(String(describing: formatCRC32ToMAC(crc32: crc32Mac)))\(audioNumber)")
         selectedDev?.writeValue(startCommand, for: updateCharacteristic, type: .withResponse)
     }
     
@@ -208,7 +259,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             return
         }
         
-        var packetString = "b\(crc32Mac)" + packet.base64EncodedString()
+        var packetString = "b\(formatCRC32ToMAC(crc32: crc32Mac))" + packet.base64EncodedString()
         if packetString.count < 128 {
             packetString.append(String(repeating: "0", count: 128 - packetString.count))
         }
@@ -224,7 +275,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             return
         }
         
-        let finishCommand = "c\(crc32Mac)".data(using: .utf8)!
+        let finishCommand = "c\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
         selectedDev?.writeValue(finishCommand, for: updateCharacteristic, type: .withResponse)
     }
     
@@ -485,7 +536,15 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             print("Ошибка чтения файла: \(error)")
         }
     }
-    
+
+
+    func formatCRC32ToMAC(crc32: String) -> String {
+        // Убедитесь, что CRC32 имеет длину 8 символов
+        let fullMessage = convertUUIDTo12Format(UIDevice.current.identifierForVendor!)
+        
+        return fullMessage
+    }
+
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
         print("Выбор файла был отменен.")
     }
