@@ -66,7 +66,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             }
             
             // Преобразуем currentPacketIndex в 2-байтовое представление (big endian).
-            var packetIndex = UInt16(currentPacketIndex + 1001).bigEndian
+            var packetIndex = UInt16(currentPacketIndex + 1000).bigEndian
             let indexData = Data(bytes: &packetIndex, count: MemoryLayout<UInt16>.size)
             
             // Объединяем данные: префикс, номер пакета и сам пакет.
@@ -85,7 +85,9 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                     // Если ещё не достигнут конец, или же повторная попытка не исчерпана:
                     if self.currentPacketIndex < self.packets.count {
                         self.currentPacketIndex += 1
-                        print(String(Double(self.currentPacketIndex)/Double(self.packets.count)))
+                        let progress = Float(currentPacketIndex) / Float(packets.count)
+                        NotificationCenter.default.post(name: Notification.Name("updateProgress"), object: nil, userInfo: ["progress": progress])
+
                         self.sendCurrentPacket()
                     } else {
                         self.finishUpdate()

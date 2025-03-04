@@ -37,6 +37,8 @@ class BluetoothCommandViewController: UIViewController {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    var progressView = UIProgressView()
+
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -44,6 +46,17 @@ class BluetoothCommandViewController: UIViewController {
         setupActivityIndicator()
         setupResponseTextView()
         NotificationCenter.default.addObserver(self, selector: #selector(handleResponse), name: NSNotification.Name("didReceiveResponse"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(updateProgressView(_:)), name: Notification.Name("updateProgress"), object: nil)
+        setupProgressView()
+
+
+    }
+    @objc func updateProgressView(_ notification: Notification) {
+        if let progress = notification.userInfo?["progress"] as? Float {
+            DispatchQueue.main.async {
+                self.progressView.setProgress(progress, animated: true)
+            }
+        }
     }
 
     private func setupTableView() {
@@ -144,6 +157,22 @@ class BluetoothCommandViewController: UIViewController {
         } catch {
             print("Ошибка чтения файла: \(error)")
         }
+    }
+
+
+    private func setupProgressView() {
+        progressView = UIProgressView(progressViewStyle: .default)
+        progressView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(progressView)
+        
+        // Пример авто-лейаута
+        NSLayoutConstraint.activate([
+            progressView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            progressView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            progressView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -40)
+        ])
+        
+        progressView.progress = 0.0
     }
 
 }
