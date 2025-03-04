@@ -24,42 +24,141 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         centralManager = CBCentralManager(delegate: self, queue: nil)
         peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
     }
-    func handlePacketResponse(_ packetNumber: Int) {
-         if packetNumber == currentPacketIndex + 1 {
-             currentPacketIndex = packetNumber
-             if currentPacketIndex < packets.count {
-                 sendCurrentPacket()
-             } else {
-                 finishUpdate()
-             }
-         } else {
-             sendCurrentPacket()
-         }
-     }
-     
-    func sendCurrentPacket() {
-        guard let updateCharacteristic = updateCharacteristic else {
-            print("Характеристика для обновления не найдена.")
-            return
+
+ 
+        // … остальные свойства
+        var isUpdating = false
+        var shouldStopUpdate = false
+        var retryCounter = 0
+        let maxRetries = 5
+
+ 
+        
+        // … остальные свойства
+
+
+        // Пример обновлённого метода отправки пакета:
+        func sendCurrentPacket() {
+            guard !shouldStopUpdate else {
+                print("Обновление остановлено. Цикл отправки прерван.")
+                isUpdating = false
+                return
+            }
+            
+            guard let updateCharacteristic = updateCharacteristic else {
+                print("Характеристика для обновления не найдена.")
+                return
+            }
+            
+            // Если пакеты закончились, завершаем обновление.
+            guard currentPacketIndex < packets.count else {
+                finishUpdate()
+                return
+            }
+            
+            let packet = packets[currentPacketIndex]
+            let crcString = formatCRC32ToMAC(crc32: crc32Mac)
+            
+            // Формируем префикс: "b" + crcString
+            guard let prefixData = ("b" + crcString).data(using: .utf8) else {
+                print("Ошибка при преобразовании префикса в данные.")
+                return
+            }
+            
+            // Преобразуем currentPacketIndex в 2-байтовое представление (big endian).
+            var packetIndex = UInt16(currentPacketIndex + 1001).bigEndian
+            let indexData = Data(bytes: &packetIndex, count: MemoryLayout<UInt16>.size)
+            
+            // Объединяем данные: префикс, номер пакета и сам пакет.
+            var fullPacketData = Data()
+            fullPacketData.append(prefixData)
+            fullPacketData.append(indexData)
+            fullPacketData.append(packet)
+            
+            // Отправляем данные
+            selectedDev?.writeValue(fullPacketData, for: updateCharacteristic, type: .withResponse)
+            
+            // Планируем отправку следующего пакета через 20 мс, только если обновление активно.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) { [weak self] in
+                guard let self = self else { return }
+                if self.isUpdating && !self.shouldStopUpdate {
+                    // Если ещё не достигнут конец, или же повторная попытка не исчерпана:
+                    if self.currentPacketIndex < self.packets.count {
+                        self.currentPacketIndex += 1
+                        print(String(Double(self.currentPacketIndex)/Double(self.packets.count)))
+                        self.sendCurrentPacket()
+                    } else {
+                        self.finishUpdate()
+                    }
+                } else {
+                    print("Отправка следующего пакета отменена, так как обновление остановлено.")
+                }
+            }
         }
         
-        let packet = packets[currentPacketIndex]
-        let crcString = formatCRC32ToMAC(crc32: crc32Mac)
-        
-        // Преобразуем префикс 'b' и строковый CRC32 в Data
-        guard let prefixData = ("b" + crcString).data(using: .utf8) else {
-            print("Ошибка при преобразовании префикса в данные.")
-            return
+        // Обновлённый обработчик ответа.
+        // Например, если устройство возвращает число, которое говорит о проблеме — продолжить с этого номера.
+        func handlePacketResponse(_ receivedPacketNumber: Int) {
+            // Если значение равно тому же, что уже отправлялось,
+            // увеличиваем счетчик ошибок; иначе – сбрасываем его.
+            if receivedPacketNumber == currentPacketIndex {
+                retryCounter += 1
+                if retryCounter >= maxRetries {
+                    shouldStopUpdate = true
+                    print("Превышено максимальное число повторных ошибок (\(retryCounter)), обновление остановлено.")
+                    return
+                }
+            } else {
+                retryCounter = 0
+                currentPacketIndex = receivedPacketNumber
+            }
+            
+            // Продолжаем, если есть еще пакеты.
+            if currentPacketIndex < packets.count {
+                sendCurrentPacket()
+            } else {
+                finishUpdate()
+            }
         }
         
-        // Объединяем префикс с исходными данными пакета
-        var fullPacketData = Data()
-        fullPacketData.append(prefixData)
-        fullPacketData.append(packet)
+        // Пример метод start/update
+        func startUpdate(audioNumber: Int) {
+            guard let _ = updateCharacteristic else {
+                print("Характеристика для обновления не найдена.")
+                return
+            }
+            // Инициализация необходимых переменных для обновления.
+            currentPacketIndex = 0
+            retryCounter = 0
+            shouldStopUpdate = false
+            isUpdating = true
+            
+            // Отправляем команду старта обновления (например, "a" + crc + audioNumber)
+            let startCommand = "a\(formatCRC32ToMAC(crc32: crc32Mac))\(audioNumber)".data(using: .utf8)!
+            selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
+            
+            // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
+            // Или же вызвать sendCurrentPacket() напрямую, если устройство готово.
+        }
         
-        // Отправляем данные
-        selectedDev?.writeValue(fullPacketData, for: updateCharacteristic, type: .withResponse)
-    }
+        func finishUpdate() {
+            isUpdating = false
+            // Отправляем команду завершения (например, "c" + crc)
+            guard let updateCharacteristic = updateCharacteristic else {
+                print("Характеристика для обновления не найдена.")
+                return
+            }
+            let finishCommand = "c\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
+            selectedDev?.writeValue(finishCommand, for: updateCharacteristic, type: .withResponse)
+            print("Обновление завершено.")
+        }
+        
+        // Остальные методы остаются без изменений...
+    
+
+        // Остальные методы остаются без изменений...
+    
+
 
     // MARK: - CBCentralManagerDelegate
     
@@ -242,16 +341,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     
     // MARK: - Методы перепрошивки аудио
     
-    func startUpdate(audioNumber: Int) {
-        guard let updateCharacteristic = updateCharacteristic else {
-            print("Характеристика для обновления не найдена.")
-            return
-        }
-        
-        let startCommand = "a\(formatCRC32ToMAC(crc32: crc32Mac))\(audioNumber)".data(using: .utf8)!
-        print("a\(String(describing: formatCRC32ToMAC(crc32: crc32Mac)))\(audioNumber)")
-        selectedDev?.writeValue(startCommand, for: updateCharacteristic, type: .withResponse)
-    }
+  
     
     func sendAudioPacket(packet: Data) {
         guard let updateCharacteristic = updateCharacteristic else {
@@ -269,15 +359,6 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         selectedDev?.writeValue(packetData, for: updateCharacteristic, type: .withResponse)
     }
     
-    func finishUpdate() {
-        guard let updateCharacteristic = updateCharacteristic else {
-            print("Характеристика для обновления не найдена.")
-            return
-        }
-        
-        let finishCommand = "c\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
-        selectedDev?.writeValue(finishCommand, for: updateCharacteristic, type: .withResponse)
-    }
     
     // MARK: - CBPeripheralManagerDelegate
     
