@@ -22,8 +22,13 @@ class BluetoothCommandViewController: UIViewController {
         ("x", "Воспроизведение медленного пика"),
         ("y", "Воспроизведение среднего пика"),
         ("z", "Воспроизведение быстрого пика"),
-        ("start upload", "Старт отправки"),
-        ("upload", "Отправить файл")
+        ("start upload 0", "Старт отправки"),
+        ("start upload 1", "Старт отправки"),
+        ("start upload 2", "Старт отправки"),
+        ("start upload 3", "Старт отправки"),
+        ("start upload 4", "Старт отправки"),
+        ("upload", "Отправить файл"),
+        ("end", "конец отправки")
     ]
     
     init(device: CBPeripheral) {
@@ -124,7 +129,7 @@ class BluetoothCommandViewController: UIViewController {
     }
     
     private func presentDocumentPicker() {
-        let documentPicker = UIDocumentPickerViewController(documentTypes: [kUTTypeWaveformAudio as String], in: .import)
+        let documentPicker = UIDocumentPickerViewController(documentTypes: [kUTTypeMP3 as String], in: .import)
         documentPicker.delegate = self
         documentPicker.allowsMultipleSelection = false
         present(documentPicker, animated: true, completion: nil)
@@ -140,18 +145,19 @@ class BluetoothCommandViewController: UIViewController {
             for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
                 let end = min(chunk + packetSize, audioData.count)
                 var packet = audioData.subdata(in: chunk..<end)
-                if packet.count < packetSize {
-                    packet.append(Data(repeating: 0x66, count: packetSize - packet.count)) // Добиваем последний пакет символом 'f'
-                }
+//                if packet.count < packetSize {
+//                    packet.append(Data(repeating: 0xFF, count: packetSize - packet.count)) // Добиваем последний пакет символом 'f'
+//                }
                 bluetoothManager.packets.append(packet)
                 print(bluetoothManager.packets.count, "count")
+              
             }
 
             // Проверка на нечётное количество пакетов
-            if bluetoothManager.packets.count % 2 != 0 {
-                let additionalPacket = Data(repeating: 0x66, count: packetSize) // Создаём пакет, состоящий из 'f'
-                bluetoothManager.packets.append(additionalPacket)
-            }
+//            if bluetoothManager.packets.count % 2 != 0 {
+//                let additionalPacket = Data(repeating: 0xFF, count: packetSize) // Создаём пакет, состоящий из 'f'
+//                bluetoothManager.packets.append(additionalPacket)
+//            }
             
             bluetoothManager.sendCurrentPacket() // Начинаем отправку первого пакета
         } catch {
@@ -191,11 +197,25 @@ extension BluetoothCommandViewController: UITableViewDelegate, UITableViewDataSo
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let command = commands[indexPath.row].0
-        if command == "start upload" {
+        if command == "start upload 4" {
+            bluetoothManager.startUpdate(audioNumber: 4)
+        }
+        if command == "start upload 3" {
+            bluetoothManager.startUpdate(audioNumber: 3)
+        }
+        if command == "start upload 2" {
+            bluetoothManager.startUpdate(audioNumber: 2)
+        }
+        if command == "start upload 1" {
+            bluetoothManager.startUpdate(audioNumber: 1)
+        }
+        if command == "start upload 0" {
             bluetoothManager.startUpdate(audioNumber: 0)
         } else if command == "upload" {
             presentDocumentPicker()
-        } else {
+        } else if command == "end"{
+            bluetoothManager.finishUpdate()
+        }else{
             sendCommand(command)
         }
         tableView.deselectRow(at: indexPath, animated: true)
