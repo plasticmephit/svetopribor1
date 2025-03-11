@@ -22,11 +22,11 @@ class BluetoothCommandViewController: UIViewController {
         ("x", "Воспроизведение медленного пика"),
         ("y", "Воспроизведение среднего пика"),
         ("z", "Воспроизведение быстрого пика"),
-        ("start upload 0", "Старт отправки"),
-        ("start upload 1", "Старт отправки"),
-        ("start upload 2", "Старт отправки"),
-        ("start upload 3", "Старт отправки"),
-        ("start upload 4", "Старт отправки"),
+        ("start upload 0", "Старт отправки 0"),
+        ("start upload 1", "Старт отправки 1"),
+        ("start upload 2", "Старт отправки 2"),
+        ("start upload 3", "Старт отправки 3"),
+        ("start upload 4", "Старт отправки 4"),
         ("upload", "Отправить файл"),
         ("end", "конец отправки")
     ]
