@@ -241,13 +241,16 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to \(peripheral.name ?? "Unknown Device")")
+        NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":"connected" + " "])
         peripheral.delegate = self
         peripheral.discoverServices(nil)
+        NotificationCenter.default.post(name: NSNotification.Name("connect"), object: nil, userInfo: ["response":"connected"])
         selectedDev = peripheral
     }
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("Failed to connect to \(peripheral.name ?? "Unknown Device"): \(error?.localizedDescription ?? "Unknown Error")")
+        NotificationCenter.default.post(name: NSNotification.Name("connect"), object: nil, userInfo: ["response":"disconnected"])
         removeInactiveDevices()
     }
     
@@ -255,6 +258,8 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         print("Disconnected from \(peripheral.name ?? "Unknown Device")")
         selectedDev = nil
         NotificationCenter.default.post(name: NSNotification.Name("didDisconnectPeripheral"), object: nil)
+        NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":"disconnected" + " "])
+        NotificationCenter.default.post(name: NSNotification.Name("connect"), object: nil, userInfo: ["response":"disconnected"])
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -313,33 +318,73 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         
         let targetUUID3 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5a")
         if characteristic.uuid == targetUUID3 {
+//            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":"CRCCcheckAnswer" + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
+            
+            NotificationCenter.default.post(name: NSNotification.Name("crc"), object: nil, userInfo: ["response":"" + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
             return
         }
         let targetUUID1 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5b")
         if characteristic.uuid == targetUUID1 {
+            NotificationCenter.default.post(name: NSNotification.Name("isplay"), object: nil, userInfo: ["response":"" + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
         }
         let targetUUID2 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f58")
         if characteristic.uuid == targetUUID2 {
+            NotificationCenter.default.post(name: NSNotification.Name("answer"), object: nil, userInfo: ["response":"" + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
+            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":"" + " " +  (String(data: characteristic.value!, encoding: .utf8)?.dropLast() ?? "") + handleResponse(response: (String(data: characteristic.value!, encoding: .utf8) ?? ""))])
         }
-        NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":characteristic.uuid.uuidString + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
-        if let readChar = crc32Char {
+       
+        
+//        if String(data: characteristic.value!, encoding: .utf8) == "300\0" {
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
+//                self.sendString(toPeripheral: peripheral, message: "a")
+//            }
+//        }
+//        if String(data: characteristic.value!, encoding: .utf8) == "200\0" {
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
+//                self.sendString(toPeripheral: peripheral, message: "x")
+//            }
+//        }
+        if String(data: characteristic.value!, encoding: .utf8) == "201\0" {
+           
+            self.centralManager.cancelPeripheralConnection(peripheral)
+            
+//                                    self.sendString(toPeripheral: peripheral, message: "x")
+        }
+        print(String(data: characteristic.value!, encoding: .utf8))
+        if crc32Char != nil {
             readCharacteristic { value in
                 if let readValue = value {
                     let data = readValue
                     if let string = String(data: data, encoding: .utf8) {
 //                        print("Converted string: \(string)", crc)
-                        if string == "0\0" {
-                            self.sendString(toPeripheral: peripheral, message: "a")
-                        }
-//
+                       
 //                        let targetUUID1 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5b")
 //                        if characteristic.uuid == targetUUID1 {
 //                            return
 //                        }
 //
 //                        if string == crc + "\0" {
+                        if string == "0\0" && String(data: self.readchar!.value!, encoding: .utf8) == "300\0"{
+                            self.sendString(toPeripheral: peripheral, message: "a")
+                        }
+                        if string == "201\0" {
+                           
+                            self.centralManager.cancelPeripheralConnection(peripheral)
+                            
+//                                    self.sendString(toPeripheral: peripheral, message: "x")
+                        }
                         if let value = characteristic.value {
                             if let responseString = String(data: value, encoding: .utf8) {
+//                                if string == "300\0" {
+//                                    self.sendString(toPeripheral: peripheral, message: "a")
+//                                }
+                                if string == "201\0" {
+                                   
+                                    self.centralManager.cancelPeripheralConnection(peripheral)
+                                    
+//                                    self.sendString(toPeripheral: peripheral, message: "x")
+                                }
+        //
                                 if let intValue = Int(responseString.dropLast()) {
                                     print(intValue, "yyyy")
                                     if intValue - 1000 > 0{
@@ -543,6 +588,10 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         case "200\0":
             print("CONNECT_OK")
             return "CONNECT_OK"
+            
+        case "300\0":
+            print("READY")
+            return "READY"
         case "400\0":
             print("DEVICE_BUSY_ERR")
             return "DEVICE_BUSY_ERR"
@@ -573,6 +622,12 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         case "203\0":
             print("AUDIO_STOP_OK")
             return "AUDIO_STOP_OK"
+        case "207\0":
+            print("UPLOAD_START_OK")
+            return "UPLOAD_START_OK"
+        case "208\0":
+            print("UPLOAD_END_OK")
+            return "UPLOAD_END_OK"
         case "407\0":
             print("AUDIO_STOP_ERR")
             return "AUDIO_STOP_ERR"
