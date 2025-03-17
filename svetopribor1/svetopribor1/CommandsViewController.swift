@@ -25,17 +25,22 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
         ("b", "Отключение"),
         ("c", "Получение информации"),
         ("d", "Воспроизведение основной аудиозаписи"),
-        ("f", "Остановка текущей аудиозаписи(0)"),
+       
         ("g", "Увеличение громкости"),
         ("h", "Уменьшение громкости"),
         ("w", "Получение состояния проигрывателя"),
-        ("x", "Воспроизведение медленного(3) пика"),
-        ("y", "Воспроизведение среднего(2) пика"),
-        ("z", "Воспроизведение быстрого(1) пика"),
+        ("f", "Остановка текущей аудиозаписи(0)"),
         ("start upload 0", "Старт отправки 0"),
+        ("delete sound 0", "delete sound 0"),
+        ("x", "Воспроизведение медленного(1) пика"),
         ("start upload 1", "Старт отправки 1"),
+        ("delete sound 1", "delete sound 1"),
+        ("y", "Воспроизведение среднего(2) пика"),
+        ("delete sound 2", "delete sound 2"),
         ("start upload 2", "Старт отправки 2"),
+        ("z", "Воспроизведение быстрого(3) пика"),
         ("start upload 3", "Старт отправки 3"),
+        ("delete sound 3", "delete sound 3"),
         ("upload", "Отправить файл"),
     ]
     
@@ -323,20 +328,38 @@ extension BluetoothCommandViewController{
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let command = commands[indexPath.row].0
-        if command == "start upload 4" {
-            bluetoothManager.startUpdate(audioNumber: 4)
-        }
+        
         if command == "start upload 3" {
             bluetoothManager.startUpdate(audioNumber: 3)
+            return
         }
         if command == "start upload 2" {
             bluetoothManager.startUpdate(audioNumber: 2)
+            return
         }
         if command == "start upload 1" {
             bluetoothManager.startUpdate(audioNumber: 1)
+            return
+        }
+        if command == "delete sound 3" {
+            bluetoothManager.deleteUpdate(audioNumber: 3)
+            return
+        }
+        if command == "delete sound 2" {
+            bluetoothManager.deleteUpdate(audioNumber: 2)
+            return
+        }
+        if command == "delete sound 1" {
+            bluetoothManager.deleteUpdate(audioNumber: 1)
+            return
+        }
+        if command == "delete sound 0" {
+            bluetoothManager.deleteUpdate(audioNumber: 0)
+            return
         }
         if command == "ble" {
             bluetoothManager.centralManager.connect(device, options: nil)
+            return
         }
         if command == "start upload 0" {
             bluetoothManager.startUpdate(audioNumber: 0)

@@ -169,6 +169,25 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
             // Или же вызвать sendCurrentPacket() напрямую, если устройство готово.
         }
+    func deleteUpdate(audioNumber: Int) {
+        guard let _ = updateCharacteristic else {
+            print("Характеристика для обновления не найдена.")
+            return
+        }
+        // Инициализация необходимых переменных для обновления.
+    shouldStopUpdate = false
+        isUpdating = true
+        currentPacketIndex = 0
+        retryCounter = 0
+       
+        
+        // Отправляем команду старта обновления (например, "a" + crc + audioNumber)
+        let startCommand = "x\(formatCRC32ToMAC(crc32: crc32Mac))\(audioNumber)".data(using: .utf8)!
+        selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
+        
+        // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
+        // Или же вызвать sendCurrentPacket() напрямую, если устройство готово.
+    }
         
         func finishUpdate() {
             isUpdating = false
@@ -588,7 +607,6 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         case "200\0":
             print("CONNECT_OK")
             return "CONNECT_OK"
-            
         case "300\0":
             print("READY")
             return "READY"
@@ -667,6 +685,12 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         case "502\0":
             print("SESSION_TIMEOUT_DISK")
             return "SESSION_TIMEOUT_DISK"
+        case "209\0":
+            print("DELETE_OK")
+            return "DELETE_OK"
+        case "416\0":
+            print("DELETE_ERROR")
+            return "DELETE_ERROR"
         default:
             print("Unknown response: \(response)")
             return "Unknown response: \(response)"
