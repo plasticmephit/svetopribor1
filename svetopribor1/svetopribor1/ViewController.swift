@@ -1,5 +1,20 @@
 import UIKit
 import CoreBluetooth
+import UIKit
+import AVFoundation
+import MediaPlayer
+import ActivityKit
+
+@available(iOS 16.1, *)
+struct SimpleActivityAttributes: ActivityAttributes {
+    // Здесь нет неизменяемых атрибутов, но можно добавлять, если требуется.
+    
+    public struct ContentState: Codable, Hashable {
+        var message: String
+        var updatedAt: Date
+    }
+}
+
 
 class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UITableViewDataSource{
     
@@ -16,72 +31,30 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
         NotificationCenter.default.addObserver(self, selector: #selector(deviceUpdated(_:)), name: NSNotification.Name("didUpdateRSSI"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(deviceRemoved(_:)), name: NSNotification.Name("didRemovePeripheral"), object: nil)
         // Добавление информатора
-        let newInformator = Informator(
-            uuid: UUID().uuidString,
-            name: "example-uuid-to-delete",
-            cleanName: "Clean Example Name",
-            longitude: NSDecimalNumber(string: "27.9876543"),
-            latitude: NSDecimalNumber(string: "53.8976543"),
-            descriptionText: "Example description",
-            type: "object"
-        )
-        InformatorManager.shared.addInformator(newInformator)
-
-        // Добавление массива информаторов
-        let informatorsArray = [
-            Informator(
-                uuid: "example-uuid-to-fetch",
-                name: "Example Name 1",
-                cleanName: "Clean Example Name 1",
-                longitude: NSDecimalNumber(string: "27.9876543"),
-                latitude: NSDecimalNumber(string: "53.8976543"),
-                descriptionText: "Example description 1",
-                type: "object"
-            ),
-            Informator(
-                uuid: "example-uuid-to-fetch1",
-                name: "Example Name 2",
-                cleanName: "Clean Example Name 2",
-                longitude: NSDecimalNumber(string: "26.9876543"),
-                latitude: NSDecimalNumber(string: "52.8976543"),
-                descriptionText: "Example description 2",
-                type: "transport"
-            )
-        ]
-        InformatorManager.shared.addInformators(informatorsArray)
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setActive(true)
+        } catch {
+            print("Ошибка при активации аудиосессии: \(error)")
+        }
+        
+        // Добавляем наблюдение за изменениями уровня громкости через KVO
+        audioSession.addObserver(self,
+                                 forKeyPath: "outputVolume",
+                                 options: [.new],
+                                 context: nil)
+        
+        // Добавляем невидимый MPVolumeView для подавления системного UI
+        let volumeView = MPVolumeView(frame: .zero)
+        volumeView.isHidden = true
+        view.addSubview(volumeView)
 
         // Удаление информатора по UUID
 //        let informatorUUIDToDelete = "example-uuid-to-delete" // Пример UUID для удаления
 //        InformatorManager.shared.deleteInformator(uuid: informatorUUIDToDelete)
 
         // Получение информатора по UUID
-        let informatorUUIDToFetch = "example-uuid-to-fetch" // Пример UUID для получения данных
-        if let fetchedInformator = InformatorManager.shared.fetchInformator(uuid: informatorUUIDToFetch) {
-            print("Fetched Informator: \(fetchedInformator)")
-        } else {
-            print("Informator not found.")
-        }
-
-        // Обновление информатора
-        let updatedInformator = Informator(
-            uuid: informatorUUIDToFetch,
-            name: "Updated Name",
-            cleanName: "Updated Clean Name",
-            longitude: NSDecimalNumber(string: "25.9876543"),
-            latitude: NSDecimalNumber(string: "51.8976543"),
-            descriptionText: "Updated description",
-            type: "object"
-        )
-        InformatorManager.shared.updateInformator(updatedInformator)
-
-        // Получение всех информаторов
-        if let allInformators = InformatorManager.shared.fetchAllInformators() {
-            for informator in allInformators {
-                print("Informator: \(informator)")
-            }
-        } else {
-            print("No informators found.")
-        }
+        
 
        
     }
@@ -139,9 +112,47 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let (device, _, _) = devices[indexPath.row]
-        bluetoothManager.centralManager.connect(device, options: nil)
-        bluetoothManager.sendpause()
-//        let commandViewController = BluetoothCommandViewController(device: device)
-//        navigationController?.pushViewController(commandViewController, animated: true)
+//        bluetoothManager.centralManager.connect(device, options: nil)
+//        bluetoothManager.sendpause()
+        let commandViewController = BluetoothCommandViewController(device: device)
+        navigationController?.pushViewController(commandViewController, animated: true)
     }
+    
+   
+
+
+        // Сохраняем начальное значение громкости, чтобы можно было сравнивать изменения
+        private var initialVolume: Float = AVAudioSession.sharedInstance().outputVolume
+        
+      
+        
+        // Обработка изменений громкости через метод KVO
+        override func observeValue(forKeyPath keyPath: String?,
+                                   of object: Any?,
+                                   change: [NSKeyValueChangeKey : Any]?,
+                                   context: UnsafeMutableRawPointer?) {
+            if keyPath == "outputVolume",
+               let newVolume = change?[.newKey] as? Float {
+                
+                if newVolume > initialVolume {
+                    // Нажата кнопка увеличения громкости
+                    print("Нажата кнопка увеличения громкости.")
+                    // Здесь свой код для обработки события
+                } else if newVolume < initialVolume {
+                    // Нажата кнопка уменьшения громкости
+                    print("Нажата кнопка уменьшения громкости.")
+                    // Здесь свой код для обработки события
+                }
+                
+                // Обновляем значение для следующего сравнения
+                initialVolume = newVolume
+            }
+        }
+        
+        deinit {
+            // Не забываем удалить наблюдателя!
+            AVAudioSession.sharedInstance().removeObserver(self, forKeyPath: "outputVolume")
+        }
+    
+
 }

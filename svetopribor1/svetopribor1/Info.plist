@@ -4,15 +4,14 @@
 <dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
+		<key>LSSupportsOpeningDocumentsInPlace</key>
+		<true/>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
+		<key>UIFileSharingEnabled</key>
+		<true/>
 		<key>UISceneConfigurations</key>
 		<dict/>
 	</dict>
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>We need access to Bluetooth to scan for nearby devices.</string>
-    <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>We need access to Bluetooth to connect to nearby devices.</string>
-
 </dict>
 </plist>
