@@ -157,7 +157,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             }
             // Инициализация необходимых переменных для обновления.
         shouldStopUpdate = false
-            isUpdating = true
+           
             currentPacketIndex = 0
             retryCounter = 0
            
@@ -176,7 +176,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
         // Инициализация необходимых переменных для обновления.
     shouldStopUpdate = false
-        isUpdating = true
+//        isUpdating = true
         currentPacketIndex = 0
         retryCounter = 0
        
@@ -188,9 +188,47 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
         // Или же вызвать sendCurrentPacket() напрямую, если устройство готово.
     }
+    
+  
+  
+ 
+    func playAudio(){
         
+    }
+    func removeAll(){
+        guard let _ = updateCharacteristic else {
+            print("Характеристика для обновления не найдена.")
+            return
+        }
+        let startCommand = "z\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
+        selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
+    }
+    func reset(){
+        guard let _ = updateCharacteristic else {
+            print("Характеристика для обновления не найдена.")
+            return
+        }
+        let startCommand = "f\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
+        selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
+    }
+    func fetchAudio(){
+        guard let _ = updateCharacteristic else {
+            print("Характеристика для обновления не найдена.")
+            return
+        }
+        let startCommand = "w\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
+        selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
+    }
+    func fetchMemory(){
+        guard let _ = updateCharacteristic else {
+            print("Характеристика для обновления не найдена.")
+            return
+        }
+        let startCommand = "h\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
+        selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
+    }
         func finishUpdate() {
-            isUpdating = false
+           
             // Отправляем команду завершения (например, "c" + crc)
             guard let updateCharacteristic = updateCharacteristic else {
                 print("Характеристика для обновления не найдена.")
@@ -265,6 +303,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         peripheral.discoverServices(nil)
         NotificationCenter.default.post(name: NSNotification.Name("connect"), object: nil, userInfo: ["response":"connected"])
         selectedDev = peripheral
+        isUpdating = false
     }
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -276,6 +315,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         print("Disconnected from \(peripheral.name ?? "Unknown Device")")
         selectedDev = nil
+        isUpdating = false
         NotificationCenter.default.post(name: NSNotification.Name("didDisconnectPeripheral"), object: nil)
         NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":"disconnected" + " "])
         NotificationCenter.default.post(name: NSNotification.Name("connect"), object: nil, userInfo: ["response":"disconnected"])
@@ -345,6 +385,9 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         let targetUUID1 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5b")
         if characteristic.uuid == targetUUID1 {
             NotificationCenter.default.post(name: NSNotification.Name("isplay"), object: nil, userInfo: ["response":"" + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
+//            if  String(data: isPlaying!.value!, encoding: .utf8) == "0\0" && String(data: self.readchar!.value!, encoding: .utf8) == "300\0"{
+//                self.sendString(toPeripheral: peripheral, message: "a")
+//            }
         }
         let targetUUID2 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f58")
         if characteristic.uuid == targetUUID2 {
@@ -358,6 +401,13 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
 //                self.sendString(toPeripheral: peripheral, message: "a")
 //            }
 //        }
+        print(String(data: characteristic.value!, encoding: .utf8), "string")
+        if isPlaying?.value == nil{
+            return
+        }
+       
+       
+        
 //        if String(data: characteristic.value!, encoding: .utf8) == "200\0" {
 //            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
 //                self.sendString(toPeripheral: peripheral, message: "x")
@@ -383,7 +433,8 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
 //                        }
 //
 //                        if string == crc + "\0" {
-                        if string == "0\0" && String(data: self.readchar!.value!, encoding: .utf8) == "300\0"{
+                        
+                        if string == "0\0"{
                             self.sendString(toPeripheral: peripheral, message: "a")
                         }
                         if string == "201\0" {
@@ -404,6 +455,9 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
 //                                    self.sendString(toPeripheral: peripheral, message: "x")
                                 }
         //
+                                if !self.isUpdating{
+                                    return
+                                }
                                 if let intValue = Int(responseString.dropLast()) {
                                     print(intValue, "yyyy")
                                     if intValue - 1000 > 0{
@@ -645,6 +699,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             return "UPLOAD_START_OK"
         case "208\0":
             print("UPLOAD_END_OK")
+            isUpdating = false
             return "UPLOAD_END_OK"
         case "407\0":
             print("AUDIO_STOP_ERR")
@@ -676,6 +731,10 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         case "412\0":
             print("DEVICE_ALREADY_CONNECTED")
             return "DEVICE_ALREADY_CONNECTED"
+        case "415\0":
+            isUpdating = false
+            print("DEVICE_fail")
+            return "DEVICE_fail"
         case "500\0":
             print("DISCONNECT_REQ")
             return "DISCONNECT_REQ"
@@ -692,8 +751,8 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             print("DELETE_ERROR")
             return "DELETE_ERROR"
         default:
-            print("Unknown response: \(response)")
-            return "Unknown response: \(response)"
+            print(": \(response)")
+            return ": \(response)"
         }
     }
     

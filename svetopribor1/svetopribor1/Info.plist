@@ -4,14 +4,14 @@
 <dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
+		<key>LSSupportsOpeningDocumentsInPlace</key>
+		<true/>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
+		<key>UIFileSharingEnabled</key>
+		<true/>
 		<key>UISceneConfigurations</key>
 		<dict/>
-        <key>UIFileSharingEnabled</key>
-        <true/>
-        <key>LSSupportsOpeningDocumentsInPlace</key>
-        <true/>
 	</dict>
 </dict>
 </plist>

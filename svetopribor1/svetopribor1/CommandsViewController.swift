@@ -21,11 +21,11 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
     
     let commands = [
         ("ble", "Подключение ble"),
+        ("f1", "reset"),
         ("a", "Подключение"),
         ("b", "Отключение"),
         ("c", "Получение информации"),
         ("d", "Воспроизведение основной аудиозаписи"),
-       
         ("g", "Увеличение громкости"),
         ("h", "Уменьшение громкости"),
         ("w", "Получение состояния проигрывателя"),
@@ -42,8 +42,15 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
         ("start upload 3", "Старт отправки 3"),
         ("delete sound 3", "delete sound 3"),
         ("upload", "Отправить файл"),
+        ("h+mac", "осталось памяти у esp под аудио"),
+        ("w+mac", "список всех файлов с их размерами"),
+        ("z+mac", "удаление всех файлов"),
+//        ("g+mac", "воспроизведение аудио под номером цифра"),
     ]
-    
+ 
+   
+   
+   
     init(device: CBPeripheral) {
         self.device = device
         bluetoothManager.centralManager.connect(device, options: nil)
@@ -282,6 +289,7 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
 
     private func sendFile(url: URL) {
         do {
+            bluetoothManager.isUpdating = true
             let audioData = try Data(contentsOf: url)
             bluetoothManager.currentPacketIndex = 0 // Сброс текущего индекса пакета перед отправкой
             bluetoothManager.packets = []
@@ -306,6 +314,7 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
             
             bluetoothManager.sendCurrentPacket() // Начинаем отправку первого пакета
         } catch {
+            bluetoothManager.isUpdating = false
             print("Ошибка чтения файла: \(error)")
         }
     }
@@ -328,7 +337,28 @@ extension BluetoothCommandViewController{
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let command = commands[indexPath.row].0
+        if command == "ble" {
+            bluetoothManager.centralManager.connect(device, options: nil)
+            return
+        }
         
+        if command == "f1" {
+            bluetoothManager.reset()
+            return
+        }
+        if bluetoothManager.isUpdating{
+            return
+        }
+        
+        if command == "upload" {
+            presentDocumentPicker()
+            return
+        }
+        if bluetoothManager.readchar?.value != nil{
+            if String(data: bluetoothManager.readchar!.value!, encoding: .utf8) == "207\0"{
+                return
+            }
+        }
         if command == "start upload 3" {
             bluetoothManager.startUpdate(audioNumber: 3)
             return
@@ -357,18 +387,34 @@ extension BluetoothCommandViewController{
             bluetoothManager.deleteUpdate(audioNumber: 0)
             return
         }
-        if command == "ble" {
-            bluetoothManager.centralManager.connect(device, options: nil)
+      
+        if command == "h+mac" {
+            bluetoothManager.fetchMemory()
+            return
+        }
+        if command == "w+mac" {
+            bluetoothManager.fetchAudio()
+            return
+        }
+        if command == "z+mac" {
+            bluetoothManager.removeAll()
+            return
+        }
+        if command == "g+mac" {
+//            bluetoothManager.deleteUpdate(audioNumber: 2)
             return
         }
         if command == "start upload 0" {
             bluetoothManager.startUpdate(audioNumber: 0)
-        } else if command == "upload" {
-            presentDocumentPicker()
-        } else if command == "end"{
+            return
+        }
+       
+        if command == "end"{
             bluetoothManager.finishUpdate()
+            return
         }else{
             sendCommand(command)
+            return
         }
         tableView.deselectRow(at: indexPath, animated: true)
     }
