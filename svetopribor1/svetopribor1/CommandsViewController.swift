@@ -75,7 +75,7 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
         NotificationCenter.default.addObserver(self, selector: #selector(handleResponseconnect), name: NSNotification.Name("connect"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(updateProgressView(_:)), name: Notification.Name("updateProgress"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(deviceUpdated(_:)), name: NSNotification.Name("didUpdateRSSI"), object: nil)
-        setupHeaderLabels()
+               setupHeaderLabels()
                setupProgressView()
                setupTableView()
                setupActivityIndicator()

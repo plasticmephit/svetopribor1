@@ -360,7 +360,9 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             if characteristic.properties.contains(.read) {
                 peripheral.readValue(for: characteristic)
             }
+
         }
+     
     }
     
 
@@ -396,23 +398,22 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
        
         
-//        if String(data: characteristic.value!, encoding: .utf8) == "300\0" {
-//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
-//                self.sendString(toPeripheral: peripheral, message: "a")
-//            }
-//        }
+        if String(data: characteristic.value!, encoding: .utf8) == "300\0" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
+                self.sendString(toPeripheral: peripheral, message: "a")
+            }
+        }
+        
         print(String(data: characteristic.value!, encoding: .utf8), "string")
+
+        if String(data: characteristic.value!, encoding: .utf8) == "200\0" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
+                self.sendString(toPeripheral: peripheral, message: "d")
+            }
+        }
         if isPlaying?.value == nil{
             return
         }
-       
-       
-        
-//        if String(data: characteristic.value!, encoding: .utf8) == "200\0" {
-//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
-//                self.sendString(toPeripheral: peripheral, message: "x")
-//            }
-//        }
         if String(data: characteristic.value!, encoding: .utf8) == "201\0" {
            
             self.centralManager.cancelPeripheralConnection(peripheral)
@@ -540,6 +541,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         let crc = calculateMACCRC32(macAddress: convertUUIDTo12Format(UIDevice.current.identifierForVendor!))
         
         if let readChar = crc32Char {
+            
             readCharacteristic { value in
                 if let readValue = value {
                     let data = readValue
@@ -549,14 +551,20 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                             print("Nice crc")
                         } else {
                             if self.selectedDev != nil {
+                                print("Bad crc")
                                 self.centralManager.cancelPeripheralConnection(self.selectedDev!)
                             }
                         }
                     } else {
                         print("Failed to convert Data to String")
                     }
+                }else{
+                    self.sendString(toPeripheral: peripheral, message: message)
                 }
             }
+        }
+        else{
+            sendString(toPeripheral: peripheral, message: message)
         }
     }
     
