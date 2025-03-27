@@ -294,7 +294,7 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
             bluetoothManager.currentPacketIndex = 0 // Сброс текущего индекса пакета перед отправкой
             bluetoothManager.packets = []
             
-            let packetSize = 128
+            let packetSize = 200
             for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
                 let end = min(chunk + packetSize, audioData.count)
                 var packet = audioData.subdata(in: chunk..<end)
