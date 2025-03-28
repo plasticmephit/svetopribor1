@@ -13,13 +13,12 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     var crc32Char: CBCharacteristic?
     var readchar: CBCharacteristic?
     var isPlaying: CBCharacteristic?
-    var adminReadchar: CBCharacteristic?
     var peripheralManager: CBPeripheralManager?
     var updateCharacteristic: CBCharacteristic?
     var crc32Mac = ""
     var currentPacketIndex = 1
     var packets: [Data] = []
-    
+    var adminReadchar: CBCharacteristic?
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
@@ -41,7 +40,6 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     // Пример обновлённого метода отправки пакета:
     // Функция для отправки текущего пакета
     func sendCurrentPacket() {
-        
         guard !shouldStopUpdate else {
             print("Обновление остановлено. Цикл отправки прерван.")
             isUpdating = false
@@ -52,14 +50,21 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             print("Характеристика для обновления не найдена.")
             return
         }
-        
+        let index = Int(String(data: adminReadchar!.value!, encoding: .utf8)!.dropLast())
+        print(currentPacketIndex, Int(String(data: adminReadchar!.value!, encoding: .utf8)!.dropLast()), "indexes")
         // Если пакеты закончились, завершаем обновление.
-        guard currentPacketIndex < packets.count else {
+        if currentPacketIndex == Int(String(data: adminReadchar!.value!, encoding: .utf8)!.dropLast()){
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) {
+                self.sendCurrentPacket()
+                return
+            }
+        }
+        guard currentPacketIndex - 1000 < packets.count else {
             finishUpdate()
             return
         }
         
-        let packet = packets[currentPacketIndex]
+        let packet = packets[currentPacketIndex - 1000]
         let crcString = formatCRC32ToMAC(crc32: crc32Mac)
         
         // Формируем префикс: "b" + crcString
@@ -69,7 +74,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
         
         // Преобразуем currentPacketIndex в 2-байтовое представление (big endian).
-        var packetIndex = UInt16(currentPacketIndex + 1000).bigEndian
+        var packetIndex = UInt16(currentPacketIndex).bigEndian
         let indexData = Data(bytes: &packetIndex, count: MemoryLayout<UInt16>.size)
         
         // Объединяем данные: префикс, номер пакета и сам пакет.
@@ -81,7 +86,23 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         // Отправляем данные
         selectedDev?.writeValue(fullPacketData, for: updateCharacteristic, type: .withResponse)
         
-        
+        // Планируем отправку следующего пакета через 20 мс, только если обновление активно.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) { [weak self] in
+            guard let self = self else { return }
+            if self.isUpdating && !self.shouldStopUpdate {
+                // Если ещё не достигнут конец, или же повторная попытка не исчерпана:
+                if self.currentPacketIndex - 1000 < self.packets.count {
+                    self.currentPacketIndex = index! + 1
+                    
+                    
+                    self.sendCurrentPacket()
+                } else {
+                    self.finishUpdate()
+                }
+            } else {
+                print("Отправка следующего пакета отменена, так как обновление остановлено.")
+            }
+        }
     }
     
     // Делегатский метод, который вызывается после завершения записи
@@ -99,9 +120,6 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         
         // Обновляем индекс пакета и уведомляем о прогрессе
         //        currentPacketIndex += 1
-        let progress = Float(currentPacketIndex) / Float(packets.count)
-        print(progress, "progress")
-        
         
     }
     
@@ -111,9 +129,17 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     func handlePacketResponse(_ receivedPacketNumber: Int) {
         // Если значение равно тому же, что уже отправлялось,
         // увеличиваем счетчик ошибок; иначе – сбрасываем его.
-        
-       
-        
+        if receivedPacketNumber == currentPacketIndex {
+            retryCounter += 1
+            if retryCounter >= maxRetries {
+                shouldStopUpdate = true
+                print("Превышено максимальное число повторных ошибок (\(retryCounter)), обновление остановлено.")
+                return
+            }
+        } else {
+            retryCounter = 0
+//            currentPacketIndex = receivedPacketNumber
+        }
         
         // Продолжаем, если есть еще пакеты.
         if currentPacketIndex < packets.count {
@@ -132,7 +158,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         // Инициализация необходимых переменных для обновления.
         shouldStopUpdate = false
         
-        currentPacketIndex = 0
+        currentPacketIndex = 1000
         retryCounter = 0
         
         
@@ -141,7 +167,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
         
         // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
-        
+        // Или же вызвать sendCurrentPacket() напрямую, если устройство готово.
     }
     func deleteUpdate(audioNumber: Int) {
         guard let _ = updateCharacteristic else {
@@ -151,7 +177,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         // Инициализация необходимых переменных для обновления.
         shouldStopUpdate = false
         //        isUpdating = true
-        currentPacketIndex = 0
+        currentPacketIndex = 1000
         retryCounter = 0
         
         
@@ -160,7 +186,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
         
         // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
-        
+        // Или же вызвать sendCurrentPacket() напрямую, если устройство готово.
     }
     
     
@@ -223,6 +249,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "crc " + String(packetIndex)])
         }
         print("Обновление завершено.")
+        isUpdating = false
     }
     
     // Остальные методы остаются без изменений...
@@ -303,6 +330,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         batteryPeripheral = peripheral
     }
     
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard error == nil else {
             print("Error discovering characteristics: \(String(describing: error))")
@@ -375,21 +403,27 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
         
         
+        //        if String(data: characteristic.value!, encoding: .utf8) == "300\0" {
+        //            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
+        //                self.sendString(toPeripheral: peripheral, message: "a")
+        //            }
+        //        }
         if String(data: characteristic.value!, encoding: .utf8) == "300\0" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
                 self.sendString(toPeripheral: peripheral, message: "a")
             }
         }
-        
         print(String(data: characteristic.value!, encoding: .utf8), "string")
-        
-        if String(data: characteristic.value!, encoding: .utf8) == "200\0" {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
-                //                self.sendString(toPeripheral: peripheral, message: "d")
-            }
+        if isPlaying?.value == nil{
+            return
         }
-        //        if isPlaying?.value == nil{
-        //            return
+        
+        
+        
+        //        if String(data: characteristic.value!, encoding: .utf8) == "200\0" {
+        //            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
+        //                self.sendString(toPeripheral: peripheral, message: "x")
+        //            }
         //        }
         if String(data: characteristic.value!, encoding: .utf8) == "201\0" {
             
@@ -398,6 +432,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             //                                    self.sendString(toPeripheral: peripheral, message: "x")
         }
         print(String(data: characteristic.value!, encoding: .utf8))
+        
         if crc32Char != nil {
             readCharacteristic { [self] value in
                 print(characteristic.uuid, "uuid")
@@ -425,21 +460,20 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                                 print("No value received or unable to decode data")
                             }
                         }else{
-                            if !self.isUpdating{
-                                return
-                            }
+//                            if !self.isUpdating{
+//                                return
+//                            }
                             if let value = characteristic.value {
                                 if let responseString = String(data: value, encoding: .utf8) {
                                     if let intValue = Int(responseString.dropLast()) {
                                         print(intValue, "yyyy")
                                         if intValue - 1000 >= 0{
-                                            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "осталось пакетов " +  String(self.packets.count - self.currentPacketIndex)])
-                                            self.currentPacketIndex = intValue - 999
-                                            self.handlePacketResponse(intValue - 999)
-                                            let progress = Float(currentPacketIndex) / Float(packets.count)
-                                                  NotificationCenter.default.post(name: Notification.Name("updateProgress"),
-                                                                                  object: nil,
-                                                                                  userInfo: ["progress": progress])
+                                            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "осталось пакетов " +  String(self.packets.count - intValue + 1000)])
+                                          
+                                            let progress = Float(intValue - 1000) / Float(packets.count)
+                                            NotificationCenter.default.post(name: Notification.Name("updateProgress"),
+                                                                            object: nil,
+                                                                            userInfo: ["progress": progress])
                                         }
                                     } else {
                                         
@@ -507,7 +541,9 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         if let readChar = crc32Char {
             
             readCharacteristic { value in
+                
                 if let readValue = value {
+                    
                     let data = readValue
                     if let string = String(data: data, encoding: .utf8) {
                         if string == crc + "\0" || string == "0\0" {
@@ -515,20 +551,20 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                             print("Nice crc")
                         } else {
                             if self.selectedDev != nil {
-                                print("Bad crc")
                                 self.centralManager.cancelPeripheralConnection(self.selectedDev!)
                             }
                         }
                     } else {
                         print("Failed to convert Data to String")
                     }
-                }else{
+                }
+                else{
                     self.sendString(toPeripheral: peripheral, message: message)
                 }
             }
-        }
-        else{
-            sendString(toPeripheral: peripheral, message: message)
+           
+        } else{
+//            self.sendString(toPeripheral: peripheral, message: message)
         }
     }
     
