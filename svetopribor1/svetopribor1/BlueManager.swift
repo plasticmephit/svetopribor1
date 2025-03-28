@@ -45,26 +45,20 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             isUpdating = false
             return
         }
-        
+        let index = extractPacketIndex(from: adminReadchar?.value)
+        print(index, "ind")
         guard let updateCharacteristic = updateCharacteristic else {
             print("Характеристика для обновления не найдена.")
             return
         }
-        let index = Int(String(data: adminReadchar!.value!, encoding: .utf8)!.dropLast())
-        print(currentPacketIndex, Int(String(data: adminReadchar!.value!, encoding: .utf8)!.dropLast()), "indexes")
+        
         // Если пакеты закончились, завершаем обновление.
-        if currentPacketIndex == Int(String(data: adminReadchar!.value!, encoding: .utf8)!.dropLast()){
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) {
-                self.sendCurrentPacket()
-                return
-            }
-        }
-        guard currentPacketIndex - 1000 < packets.count else {
+        guard index - 999 < packets.count else {
             finishUpdate()
             return
         }
         
-        let packet = packets[currentPacketIndex - 1000]
+        let packet = packets[index - 999]
         let crcString = formatCRC32ToMAC(crc32: crc32Mac)
         
         // Формируем префикс: "b" + crcString
@@ -74,7 +68,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         }
         
         // Преобразуем currentPacketIndex в 2-байтовое представление (big endian).
-        var packetIndex = UInt16(currentPacketIndex).bigEndian
+        var packetIndex = UInt16(index + 1).bigEndian
         let indexData = Data(bytes: &packetIndex, count: MemoryLayout<UInt16>.size)
         
         // Объединяем данные: префикс, номер пакета и сам пакет.
@@ -84,17 +78,18 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         fullPacketData.append(packet)
         
         // Отправляем данные
-        selectedDev?.writeValue(fullPacketData, for: updateCharacteristic, type: .withResponse)
+        selectedDev?.writeValue(fullPacketData, for: updateCharacteristic, type: .withoutResponse)
         
         // Планируем отправку следующего пакета через 20 мс, только если обновление активно.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
             guard let self = self else { return }
             if self.isUpdating && !self.shouldStopUpdate {
                 // Если ещё не достигнут конец, или же повторная попытка не исчерпана:
-                if self.currentPacketIndex - 1000 < self.packets.count {
-                    self.currentPacketIndex = index! + 1
-                    
-                    
+                if index - 999 < self.packets.count {
+                 
+                    let progress = Float(index - 999) / Float(packets.count)
+                    NotificationCenter.default.post(name: Notification.Name("updateProgress"), object: nil, userInfo: ["progress": progress])
+                    NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "осталось пакетов " +  String(self.packets.count - index + 1000)])
                     self.sendCurrentPacket()
                 } else {
                     self.finishUpdate()
@@ -104,7 +99,22 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             }
         }
     }
-    
+    func extractPacketIndex(from data: Data?) -> Int {
+        guard let data = data,
+              let rawString = String(data: data, encoding: .utf8) else {
+            return 999
+        }
+        // Удаляем пробелы, переводы строк и нулевые символы
+        let trimmed = rawString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = trimmed.filter { $0 != "\0" }
+        // Если в конце строки есть '/', удаляем его (если это нужно по формату)
+        let finalString = cleaned.hasSuffix("/") ? String(cleaned.dropLast()) : cleaned
+        if Int(finalString) == 0{
+            return 999
+        }
+        return Int(finalString) ?? 999
+    }
+
     // Делегатский метод, который вызывается после завершения записи
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error = error {
@@ -138,7 +148,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             }
         } else {
             retryCounter = 0
-//            currentPacketIndex = receivedPacketNumber
+            currentPacketIndex = receivedPacketNumber
         }
         
         // Продолжаем, если есть еще пакеты.
@@ -158,7 +168,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         // Инициализация необходимых переменных для обновления.
         shouldStopUpdate = false
         
-        currentPacketIndex = 1000
+        currentPacketIndex = 0
         retryCounter = 0
         
         
@@ -177,7 +187,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         // Инициализация необходимых переменных для обновления.
         shouldStopUpdate = false
         //        isUpdating = true
-        currentPacketIndex = 1000
+        currentPacketIndex = 0
         retryCounter = 0
         
         
@@ -249,7 +259,6 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "crc " + String(packetIndex)])
         }
         print("Обновление завершено.")
-        isUpdating = false
     }
     
     // Остальные методы остаются без изменений...
@@ -432,56 +441,69 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             //                                    self.sendString(toPeripheral: peripheral, message: "x")
         }
         print(String(data: characteristic.value!, encoding: .utf8))
-        
         if crc32Char != nil {
-            readCharacteristic { [self] value in
-                print(characteristic.uuid, "uuid")
+            readCharacteristic { value in
                 if let readValue = value {
-                    
                     let data = readValue
-                    
                     if let string = String(data: data, encoding: .utf8) {
-                        if characteristic.uuid.uuidString == "E1C800B4-695B-4747-9256-6D22FD869F58"{
-                            if string == "0\0"{
-                                self.sendString(toPeripheral: peripheral, message: "a")
-                            }
-                            if string == "201\0" {
-                                self.centralManager.cancelPeripheralConnection(peripheral)
-                            }
-                            if let value = characteristic.value {
-                                if let responseString = String(data: value, encoding: .utf8) {
-                                    if string == "201\0" {
-                                        self.centralManager.cancelPeripheralConnection(peripheral)
+                        //                        print("Converted string: \(string)", crc)
+                        
+                        //                        let targetUUID1 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5b")
+                        //                        if characteristic.uuid == targetUUID1 {
+                        //                            return
+                        //                        }
+                        //
+                        //                        if string == crc + "\0" {
+                        
+                        if string == "0\0"{
+                            self.sendString(toPeripheral: peripheral, message: "a")
+                        }
+                        if string == "201\0" {
+                            
+                            self.centralManager.cancelPeripheralConnection(peripheral)
+                            
+                            //                                    self.sendString(toPeripheral: peripheral, message: "x")
+                        }
+                        if let value = characteristic.value {
+                            if let responseString = String(data: value, encoding: .utf8) {
+                                //                                if string == "300\0" {
+                                //                                    self.sendString(toPeripheral: peripheral, message: "a")
+                                //                                }
+                                if string == "201\0" {
+                                    
+                                    self.centralManager.cancelPeripheralConnection(peripheral)
+                                    
+                                    //                                    self.sendString(toPeripheral: peripheral, message: "x")
+                                }
+                                //
+                                if !self.isUpdating{
+                                    return
+                                }
+                                if let intValue = Int(responseString.dropLast()) {
+                                    print(intValue, "yyyy")
+                                    if intValue - 1000 > 0{
+                                       
+//                                        self.handlePacketResponse(intValue - 1000)
                                     }
                                 } else {
-                                    print("Unable to decode data to a string")
+                                    
+                                    print("Received value is not greater than 1000")
                                 }
                             } else {
-                                print("No value received or unable to decode data")
+                                print("Unable to decode data to a string")
                             }
-                        }else{
-//                            if !self.isUpdating{
-//                                return
-//                            }
-                            if let value = characteristic.value {
-                                if let responseString = String(data: value, encoding: .utf8) {
-                                    if let intValue = Int(responseString.dropLast()) {
-                                        print(intValue, "yyyy")
-                                        if intValue - 1000 >= 0{
-                                            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "осталось пакетов " +  String(self.packets.count - intValue + 1000)])
-                                          
-                                            let progress = Float(intValue - 1000) / Float(packets.count)
-                                            NotificationCenter.default.post(name: Notification.Name("updateProgress"),
-                                                                            object: nil,
-                                                                            userInfo: ["progress": progress])
-                                        }
-                                    } else {
-                                        
-                                        print("Received value is not greater than 1000")
-                                    }
-                                }
-                            }
+                        } else {
+                            print("No value received or unable to decode data")
                         }
+                        
+                        //                        }
+                        //                        if string == crc + "\0" || string == "0\0" {
+                        //                        } else {
+                        //                            if self.selectedDev != nil {
+                        //                                self.centralManager.cancelPeripheralConnection(self.selectedDev!)
+                        //                            }
+                        
+                        
                     } else {
                         print("Failed to convert Data to String")
                     }
@@ -563,8 +585,6 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                 }
             }
            
-        } else{
-//            self.sendString(toPeripheral: peripheral, message: message)
         }
     }
     
@@ -782,7 +802,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         
         do {
             let audioData = try Data(contentsOf: url)
-            let packetSize = 200
+            let packetSize = 128
             var packetNumber = 0
             for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
                 let end = min(chunk + packetSize, audioData.count)
