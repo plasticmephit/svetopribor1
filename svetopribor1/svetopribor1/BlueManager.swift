@@ -527,7 +527,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         
         guard let packetData = packetString.data(using: .utf8) else { return }
         
-        selectedDev?.writeValue(packetData, for: updateCharacteristic, type: .withResponse)
+        selectedDev?.writeValue(packetData, for: updateCharacteristic, type: .withoutResponse)
     }
     
     
@@ -786,35 +786,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     
     // MARK: - Выбор файла
     
-    func presentDocumentPicker(in viewController: UIViewController) {
-        let documentPicker = UIDocumentPickerViewController(documentTypes: [kUTTypeWaveformAudio as String], in: .import)
-        documentPicker.delegate = self
-        documentPicker.allowsMultipleSelection = false
-        viewController.present(documentPicker, animated: true, completion: nil)
-    }
-    
-    // MARK: - UIDocumentPickerDelegate
-    
-    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard let url = urls.first else {
-            return
-        }
-        
-        do {
-            let audioData = try Data(contentsOf: url)
-            let packetSize = 128
-            var packetNumber = 0
-            for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
-                let end = min(chunk + packetSize, audioData.count)
-                let packet = audioData.subdata(in: chunk..<end)
-                sendAudioPacket(packet: packet)
-                packetNumber += 1
-            }
-            finishUpdate()
-        } catch {
-            print("Ошибка чтения файла: \(error)")
-        }
-    }
+   
     
     
     func formatCRC32ToMAC(crc32: String) -> String {

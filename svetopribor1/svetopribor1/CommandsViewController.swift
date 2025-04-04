@@ -288,36 +288,116 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
     }
 
     private func sendFile(url: URL) {
+        // Сначала проверяем валидность MP3-файла
+        guard isValidMP3(url: url) else {
+            // Если файл не проходит проверку, показываем алерт с ошибкой
+            DispatchQueue.main.async {
+                let alert = UIAlertController(title: "Ошибка", message: "Неверный MP3 файл!", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+                self.present(alert, animated: true, completion: nil)
+            }
+            bluetoothManager.isUpdating = false
+            return
+        }
+        
         do {
             bluetoothManager.isUpdating = true
             let audioData = try Data(contentsOf: url)
-            bluetoothManager.currentPacketIndex = 1000 // Сброс текущего индекса пакета перед отправкой
+            bluetoothManager.currentPacketIndex = 0 // Сброс текущего индекса пакета перед отправкой
             bluetoothManager.packets = []
             
-            let packetSize = 200
+            let packetSize = 215
             for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
                 let end = min(chunk + packetSize, audioData.count)
-                var packet = audioData.subdata(in: chunk..<end)
-//                if packet.count < packetSize {
-//                    packet.append(Data(repeating: 0xFF, count: packetSize - packet.count)) // Добиваем последний пакет символом 'f'
-//                }
+                let packet = audioData.subdata(in: chunk..<end)
                 bluetoothManager.packets.append(packet)
                 print(bluetoothManager.packets.count, "count")
-                
             }
-            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":String(bluetoothManager.packets.count) + " пакетов всего"])
-            // Проверка на нечётное количество пакетов
-//            if bluetoothManager.packets.count % 2 != 0 {
-//                let additionalPacket = Data(repeating: 0xFF, count: packetSize) // Создаём пакет, состоящий из 'f'
-//                bluetoothManager.packets.append(additionalPacket)
-//            }
             
-            bluetoothManager.sendCurrentPacket() // Начинаем отправку первого пакета
+            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"),
+                                            object: nil,
+                                            userInfo: ["response": "\(bluetoothManager.packets.count) пакетов всего"])
+            // Начинаем отправку первого пакета
+            bluetoothManager.sendCurrentPacket()
         } catch {
             bluetoothManager.isUpdating = false
             print("Ошибка чтения файла: \(error)")
         }
     }
+
+    private func isValidMP3(url: URL) -> Bool {
+        // Пробуем загрузить данные из файла
+        guard let fileData = try? Data(contentsOf: url) else {
+            print("Error: Failed to read file data!")
+            return false
+        }
+        
+        // Минимальный размер для проверки — минимум 10 байт (для заголовка ID3)
+        guard fileData.count >= 10 else {
+            print("Error: File too short to be a valid MP3 file!")
+            return false
+        }
+        
+        var offset = 0
+        let header = fileData.subdata(in: 0..<10)
+        
+        // Если первые три байта равны "ID3", это заголовок ID3v2
+        if header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33 {
+            // Вычисляем длину заголовка ID3v2 (ячейки 6-9 — "synchsafe")
+            let id3Length = Int((UInt32(header[6] & 0x7F) << 21) |
+                                (UInt32(header[7] & 0x7F) << 14) |
+                                (UInt32(header[8] & 0x7F) << 7)  |
+                                UInt32(header[9] & 0x7F))
+            offset = 10 + id3Length
+            if fileData.count < offset + 4 {
+                print("Error: Not enough data after ID3 header!")
+                return false
+            }
+            print("ID3v2 header detected, skipping \(id3Length) bytes...")
+        } else {
+            offset = 0
+            if fileData.count < 4 {
+                print("Error: File too short for MP3 frame header!")
+                return false
+            }
+        }
+        
+        // Читаем 4-байтовый заголовок MP3-фрейма
+        let frameHeader = fileData.subdata(in: offset..<offset+4)
+        
+        // Проверяем валидность заголовка MP3-фрейма: первый байт должен быть 0xFF, а верхние 3 бита второго байта — 0xE0
+        if frameHeader[0] != 0xFF || (frameHeader[1] & 0xE0) != 0xE0 {
+            print("Error: Invalid MP3 frame header!")
+            return false
+        }
+        
+        // Определяем параметры MP3-файла (битрейт, частота дискретизации, режим каналов)
+        let bitrates: [Int] = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0]
+        let sampleRates: [Int] = [44100, 48000, 32000, 0]
+        let channelModes = ["Stereo", "Joint Stereo", "Dual Channel", "Mono"]
+        
+        let bitrateIndex = Int((frameHeader[2] >> 4) & 0x0F)
+        let bitrate = bitrates[bitrateIndex]
+        let sampleRateIndex = Int((frameHeader[2] >> 2) & 0x03)
+        let sampleRate = sampleRates[sampleRateIndex]
+        let channelModeIndex = Int((frameHeader[3] >> 6) & 0x03)
+        let channelMode = channelModes[channelModeIndex]
+        
+        // Если битрейт или частота дискретизации равны 0, формат не поддерживается
+        if bitrate == 0 || sampleRate == 0 {
+            print("Error: Unsupported MP3 format!")
+            return false
+        }
+        
+        print("File: \(url.lastPathComponent)")
+        print("Bitrate: \(bitrate) kbps")
+        print("Sample Rate: \(sampleRate) Hz")
+        print("Channels: \(channelMode)")
+        print("MP3 file is valid for playback!")
+        
+        return true
+    }
+
 
 
 
