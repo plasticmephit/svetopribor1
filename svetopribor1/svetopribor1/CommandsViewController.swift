@@ -87,6 +87,9 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
         if let progress = notification.userInfo?["response"] as? String {
             DispatchQueue.main.async {
                 self.label6.text = "status " + progress
+                if progress == "disconnected"{
+                    self.navigationController?.popViewController(animated: true)
+                }
             }
         }
     }

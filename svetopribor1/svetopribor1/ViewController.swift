@@ -5,15 +5,7 @@ import AVFoundation
 import MediaPlayer
 import ActivityKit
 
-@available(iOS 16.1, *)
-struct SimpleActivityAttributes: ActivityAttributes {
-    // Здесь нет неизменяемых атрибутов, но можно добавлять, если требуется.
-    
-    public struct ContentState: Codable, Hashable {
-        var message: String
-        var updatedAt: Date
-    }
-}
+
 
 
 class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UITableViewDataSource{
@@ -122,36 +114,10 @@ class BluetoothDevicesViewController: UIViewController, UITableViewDelegate, UIT
 
 
         // Сохраняем начальное значение громкости, чтобы можно было сравнивать изменения
-        private var initialVolume: Float = AVAudioSession.sharedInstance().outputVolume
-        
-      
-        
-        // Обработка изменений громкости через метод KVO
-        override func observeValue(forKeyPath keyPath: String?,
-                                   of object: Any?,
-                                   change: [NSKeyValueChangeKey : Any]?,
-                                   context: UnsafeMutableRawPointer?) {
-            if keyPath == "outputVolume",
-               let newVolume = change?[.newKey] as? Float {
-                
-                if newVolume > initialVolume {
-                    // Нажата кнопка увеличения громкости
-                    print("Нажата кнопка увеличения громкости.")
-                    // Здесь свой код для обработки события
-                } else if newVolume < initialVolume {
-                    // Нажата кнопка уменьшения громкости
-                    print("Нажата кнопка уменьшения громкости.")
-                    // Здесь свой код для обработки события
-                }
-                
-                // Обновляем значение для следующего сравнения
-                initialVolume = newVolume
-            }
-        }
-        
+       
         deinit {
             // Не забываем удалить наблюдателя!
-            AVAudioSession.sharedInstance().removeObserver(self, forKeyPath: "outputVolume")
+            
         }
     
 
