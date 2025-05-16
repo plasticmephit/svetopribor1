@@ -306,7 +306,7 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
         do {
             bluetoothManager.isUpdating = true
             let audioData = try Data(contentsOf: url)
-            bluetoothManager.currentPacketIndex = 0 // Сброс текущего индекса пакета перед отправкой
+            bluetoothManager.currentPacketIndex = 999 // Сброс текущего индекса пакета перед отправкой
             bluetoothManager.packets = []
             
             let packetSize = 219

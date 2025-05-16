@@ -30,7 +30,7 @@ extension BluetoothManager{
         let crcString = formatCRC32ToMAC(crc32: crc32Mac)
         
         // Формируем префикс: "b" + crcString
-        guard let prefixData = ("b" + crcString).data(using: .utf8) else {
+        guard let prefixData = ("b").data(using: .utf8) else {
             print("Ошибка при преобразовании префикса в данные.")
             return
         }
@@ -121,12 +121,12 @@ extension BluetoothManager{
         // Инициализация необходимых переменных для обновления.
         shouldStopUpdate = false
         
-        currentPacketIndex = 0
+        currentPacketIndex = 1000
         retryCounter = 0
         
         
         // Отправляем команду старта обновления (например, "a" + crc + audioNumber)
-        let startCommand = "a\(formatCRC32ToMAC(crc32: crc32Mac))\(audioNumber)".data(using: .utf8)!
+        let startCommand = "a\(audioNumber)".data(using: .utf8)!
         selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
         
         // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
@@ -145,7 +145,7 @@ extension BluetoothManager{
         
         
         // Отправляем команду старта обновления (например, "a" + crc + audioNumber)
-        let startCommand = "x\(formatCRC32ToMAC(crc32: crc32Mac))\(audioNumber)".data(using: .utf8)!
+        let startCommand = "x\(audioNumber)".data(using: .utf8)!
         selectedDev?.writeValue(startCommand, for: updateCharacteristic!, type: .withResponse)
         
         // Возможно, здесь можно запустить отправку первого пакета после подтверждения устройства.
@@ -204,7 +204,7 @@ extension BluetoothManager{
         let indexData = Data(bytes: &packetIndex, count: MemoryLayout<UInt32>.size)
         print("1crc32:", packetIndex)
         NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response": "через 2 сек"])
-        var finishCommand = "c\(formatCRC32ToMAC(crc32: crc32Mac))".data(using: .utf8)!
+        var finishCommand = "c".data(using: .utf8)!
         finishCommand.append(indexData)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             
