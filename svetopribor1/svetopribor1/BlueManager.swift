@@ -229,9 +229,6 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                         //
                         //                        if string == crc + "\0" {
                         
-                        if string == "0\0"{
-                            self.sendString(toPeripheral: peripheral, message: "a")
-                        }
                         if string == "201\0" {
                             
                             self.centralManager.cancelPeripheralConnection(peripheral)
@@ -296,7 +293,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
             return
         }
         
-        var packetString = "b\(formatCRC32ToMAC(crc32: crc32Mac))" + packet.base64EncodedString()
+        var packetString = "b" + packet.base64EncodedString()
         
         
         guard let packetData = packetString.data(using: .utf8) else { return }
