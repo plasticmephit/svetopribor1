@@ -15,7 +15,7 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
        private let responseTextView = UITextView()
        private let progressView = UIProgressView(progressViewStyle: .default)
     
-  
+    private var cleanupTimer: Timer?
     let bluetoothManager = BluetoothManager.shared
     let device: CBPeripheral
     
@@ -49,12 +49,21 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
     ]
  
    
-   
+    func startAutoRemoval() {
+           // Запускаем таймер с интервалом 2 секунды
+           cleanupTimer = Timer.scheduledTimer(
+               withTimeInterval: 2.0,
+               repeats: true
+           ) { [weak self] _ in
+         
+               
+           }
+       }
    
     init(device: CBPeripheral) {
         self.device = device
         bluetoothManager.centralManager.connect(device, options: nil)
-        
+      
         super.init(nibName: nil, bundle: nil)
         self.title = device.name ?? "Команды устройства"
     }
@@ -309,13 +318,15 @@ class BluetoothCommandViewController: UIViewController, UITableViewDelegate, UIT
             bluetoothManager.currentPacketIndex = 999 // Сброс текущего индекса пакета перед отправкой
             bluetoothManager.packets = []
             
-            let packetSize = 219
-            for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
-                let end = min(chunk + packetSize, audioData.count)
-                let packet = audioData.subdata(in: chunk..<end)
-                bluetoothManager.packets.append(packet)
-                print(bluetoothManager.packets.count, "count")
-            }
+            let packetSize = 220
+            
+                        for chunk in stride(from: 0, to: audioData.count, by: packetSize) {
+                            let end = min(chunk + packetSize, audioData.count)
+                            let packet = audioData.subdata(in: chunk..<end)
+                            bluetoothManager.packets.append(packet)
+                            print(bluetoothManager.packets.count, "count")
+                }
+            
             
             NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"),
                                             object: nil,

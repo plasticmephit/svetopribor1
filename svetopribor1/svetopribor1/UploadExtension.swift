@@ -44,12 +44,11 @@ extension BluetoothManager{
         fullPacketData.append(prefixData)
         fullPacketData.append(indexData)
         fullPacketData.append(packet)
-        
-        // Отправляем данные
+      
         selectedDev?.writeValue(fullPacketData, for: updateCharacteristic, type: .withoutResponse)
         
         // Планируем отправку следующего пакета через 20 мс, только если обновление активно.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.033) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.037) { [weak self] in
             guard let self = self else { return }
             if self.isUpdating && !self.shouldStopUpdate {
                 // Если ещё не достигнут конец, или же повторная попытка не исчерпана:

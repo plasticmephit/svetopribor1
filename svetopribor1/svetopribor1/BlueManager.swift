@@ -64,7 +64,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
        
         if let name = peripheral.name, name.starts(with: "BYE") {
-          
+          print(advertisementData)
             let now = Date()
             if let index = devices.firstIndex(where: { $0.0.identifier == peripheral.identifier }) {
                 
@@ -74,23 +74,25 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                 devices.append((peripheral, RSSI, now))
             }
             NotificationCenter.default.post(name: NSNotification.Name("didUpdateRSSI"), object: nil, userInfo: ["device": (peripheral, RSSI, now)])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                self.removeInactiveDevices()
-            }
+           
         }
     }
     
     func removeInactiveDevices() {
-        let now = Date()
-        devices.removeAll { device, _, lastSeen in
-            let remove = now.timeIntervalSince(lastSeen) > 2
-            if remove {
-                print("Removed inactive device \(device.name ?? "Unknown device")")
-                NotificationCenter.default.post(name: NSNotification.Name("didRemovePeripheral"), object: nil, userInfo: ["device": device])
-            }
-            return remove
-        }
-    }
+           let now = Date()
+           devices.removeAll { device, _, lastSeen in
+               let shouldRemove = now.timeIntervalSince(lastSeen) > 2
+               if shouldRemove {
+                   
+                   NotificationCenter.default.post(
+                       name: NSNotification.Name("didRemovePeripheral"),
+                       object: nil,
+                       userInfo: ["device": device]
+                   )
+               }
+               return shouldRemove
+           }
+       }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to \(peripheral.name ?? "Unknown Device")")
@@ -180,7 +182,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
         let targetUUID3 = CBUUID(string: "e1c800b4-695b-4747-9256-6d22fd869f5a")
         if characteristic.uuid == targetUUID3 {
             //            NotificationCenter.default.post(name: NSNotification.Name("didReceiveResponse"), object: nil, userInfo: ["response":"CRCCcheckAnswer" + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
-            
+            print((String(data: characteristic.value!, encoding: .utf8) ?? ""), "crc")
             NotificationCenter.default.post(name: NSNotification.Name("crc"), object: nil, userInfo: ["response":"" + " " +  (String(data: characteristic.value!, encoding: .utf8) ?? "")])
             return
         }
@@ -204,6 +206,12 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                 self.sendString(toPeripheral: peripheral, message: "a")
             }
         }
+        if String(data: characteristic.value!, encoding: .utf8) == "200\0" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) {
+                self.sendString(toPeripheral: peripheral, message: "d")
+            }
+        }
+        
         print(String(data: characteristic.value!, encoding: .utf8), "string")
         if isPlaying?.value == nil{
             return
@@ -228,7 +236,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                         //                        }
                         //
                         //                        if string == crc + "\0" {
-                        
+                       
                         if string == "201\0" {
                             
                             self.centralManager.cancelPeripheralConnection(peripheral)
@@ -246,6 +254,7 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                                     
                                     //                                    self.sendString(toPeripheral: peripheral, message: "x")
                                 }
+                            
                                 //
                                 if !self.isUpdating{
                                     return
@@ -344,7 +353,8 @@ class BluetoothManager: NSObject, CBPeripheralManagerDelegate, CBCentralManagerD
                             print("Nice crc")
                         } else {
                             if self.selectedDev != nil {
-                                self.centralManager.cancelPeripheralConnection(self.selectedDev!)
+                                self.performSendString(message: message)
+                         //       self.centralManager.cancelPeripheralConnection(self.selectedDev!)
                             }
                         }
                     } else {
